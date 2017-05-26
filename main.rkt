@@ -101,6 +101,9 @@
             (rec-hash2 (scope-body sc))))))
 
 (struct telescope (items)
+  #:omit-define-syntaxes
+  #:extra-constructor-name make-telescope
+  #:transparent
   #:methods gen:custom-write
   [(define (write-proc tl port mode)
      (define items (telescope-items tl))
@@ -114,27 +117,27 @@
        (fprintf port "~a:" x)
        (parameterize ([used-names (append temps-slice (used-names))])
          (fprintf port "~a~a" (scope-body item) (if (< i (- num-items 1)) ", " "")))))]
-
   #:property prop:bindings
   (binder
    (lambda (tl frees i)
      (define (go item)
        (match-define (binder abs _) (bindings-accessor item))
        (abs item frees i))
-     (telescope (map go (telescope-items tl))))
+     (make-telescope (map go (telescope-items tl))))
    (lambda (tl i new-exprs)
      (define (go item)
        (match-define (binder _ inst) (bindings-accessor item))
        (inst item i new-exprs))
-     (map go (telescope-items tl))))
+     (map go (telescope-items tl)))))
 
-  #:methods gen:equal+hash
-  ((define (equal-proc tl1 tl2 rec-equal?)
-     (and (rec-equal? (telescope-items tl1) (telescope-items tl2))))
-   (define (hash-proc tl rec-hash)
-     (rec-hash (telescope-items tl)))
-   (define (hash2-proc tl rec-hash2)
-     (rec-hash2 (telescope-items tl)))))
+
+(define-for-syntax telescope-expander
+  (lambda (stx)
+    (syntax-parse stx
+      [(_ (x:id e:expr) ...)
+       (syntax/loc stx (make-telescope (tele (x e) ...)))])))
+
+(define-match-expander telescope telescope-expander telescope-expander)
 
 (struct pi-type (domain codomain)
   #:methods gen:custom-write
@@ -293,13 +296,15 @@
 
 (module+ test
   (pi-type
-   (telescope (list (in-scope () (fresh)) (in-scope (a) a) (in-scope (a b) b)))
+   (telescope (a (fresh))
+              (b a)
+              (c b))
    (in-scope (a b c) a))
 
   (let ([x (fresh "hello")])
     (check-equal?
-     (telescope (list (in-scope () x) (in-scope (a) a)))
-     (telescope (list (in-scope () x) (in-scope (b) b)))))
+     (telescope (a x) (b a))
+     (telescope (b x) (c b))))
 
   (check-equal?
    (in-scope (n m) n)
