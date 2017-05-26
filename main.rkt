@@ -293,13 +293,13 @@
 
 (module+ test
   (pi-type
-   (telescope (list (in-scope () (fresh)) (in-scope (a) a) (in-scope (a b) b)))
+   (telescope (tele (a (fresh)) (b a) (c b)))
    (in-scope (a b c) a))
 
   (let ([x (fresh "hello")])
     (check-equal?
-     (telescope (list (in-scope () x) (in-scope (a) a)))
-     (telescope (list (in-scope () x) (in-scope (b) b)))))
+     (telescope (tele (a x) (b a)))
+     (telescope (tele (e x) (c e)))))
 
   (check-equal?
    (in-scope (n m) n)
@@ -317,7 +317,7 @@
      (tele (z x*) (z z))))
 
   (let ([x (fresh "hi")])
-   (check-equal? (match (tele (y x) (z y))
-                   [(tele (m v) (n m))
-                    v])
-                 x)))
+    (check-equal? (match (tele (y x) (z y))
+                    [(tele (m v) (n m))
+                     v])
+                  x)))
