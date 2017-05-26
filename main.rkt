@@ -273,6 +273,24 @@
            (let ([x (fresh x-str)] ...)
              (abs (list x ...) body))))])))
 
+(define-for-syntax tele-expander
+  (lambda (stx)
+    (define (make-tele bound todo)
+      (syntax-parse todo
+        [((x:id e:expr) (y:id e2:expr) ...)
+         (with-syntax ([bound bound]
+                       [rhs (make-tele (append bound (list #'x))
+                                       #'((y e2) ...))])
+          #'(cons (in-scope bound e)
+                  rhs))]
+        [() #''()]))
+    (syntax-parse stx
+      [(_ (x:id e:expr) ...)
+       (make-tele '() #'((x e) ...))])))
+
+(define-match-expander tele
+  tele-expander tele-expander)
+
 (module+ test
   (pi-type
    (telescope (list (in-scope () (fresh)) (in-scope (a) a) (in-scope (a b) b)))
@@ -285,4 +303,21 @@
 
   (check-equal?
    (in-scope (n m) n)
-   (in-scope (a b) a)))
+   (in-scope (a b) a))
+
+  (let ([x (fresh "hi")])
+    (check-equal?
+     (tele (y x) (z y))
+     (tele (z x) (z z))))
+
+  (let ([x (fresh "hi")]
+        [x* (fresh "hi")])
+    (check-not-equal?
+     (tele (y x) (z y))
+     (tele (z x*) (z z))))
+
+  (let ([x (fresh "hi")])
+   (check-equal? (match (tele (y x) (z y))
+                   [(tele (m v) (n m))
+                    v])
+                 x)))
