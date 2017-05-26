@@ -322,7 +322,7 @@
      (tele (z x*) (z z))))
 
   (let ([x (fresh "hi")])
-   (check-equal? (match (tele (y x) (z y))
-                   [(tele (m v) (n m))
-                    v])
-                 x)))
+    (check-equal? (match (tele (y x) (z y))
+                    [(tele (m v) (n m))
+                     v])
+                  x)))
