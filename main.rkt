@@ -1,6 +1,6 @@
 #lang racket/base
 
-;; This is based on David's ABT code, except that I hav for now removed the 'sorts' stuff,
+;; This is based on David's ABT code, except that I have for now removed the 'sorts' stuff,
 ;; preferring only to work with numbers of bound variables. Separately, I will write a
 ;; typechecker once I have this working at an untyped level.
 
@@ -136,17 +136,43 @@
    (define (hash2-proc tl rec-hash2)
      (rec-hash2 (telescope-items tl)))))
 
-; TODO: implement binder
-; TODO: implement equal+hash
 (struct pi-type (domain codomain)
   #:methods gen:custom-write
-  [[define (write-proc pi port mode)
+  ((define (write-proc pi port mode)
      (match-define (pi-type tl sc) pi)
      (match-define (scope vl body) sc)
      (define temps (fresh-print-names vl))
      (fprintf port "{~a}" tl)
      (parameterize ([used-names (append temps (used-names))])
-       (fprintf port " --> ~a" body))]])
+       (fprintf port " --> ~a" body))))
+
+  #:property prop:bindings
+  (binder
+   (lambda (pi frees i)
+     (match-define (pi-type tl sc) pi)
+     (match-define (binder abs-tl _) (bindings-accessor tl))
+     (match-define (binder abs-sc _) (bindings-accessor sc))
+     (pi (abs-tl tl frees i) (abs-sc sc frees i)))
+   (lambda (pi i new-exprs)
+     (match-define (pi-type tl sc) pi)
+     (match-define (binder _ inst-tl) (bindings-accessor tl))
+     (match-define (binder _ inst-sc) (bindings-accessor sc))
+     (pi (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
+
+  #:methods gen:equal+hash
+  ((define (equal-proc pi1 pi2 rec-equal?)
+     (and
+      (rec-equal? (pi-type-domain pi1) (pi-type-domain pi2))
+      (rec-equal? (pi-type-codomain pi1) (pi-type-codomain pi2))))
+   (define (hash-proc pi rec-hash)
+     (fxxor
+      (rec-hash (pi-type-domain pi))
+      (rec-hash (pi-type-codomain pi))))
+   (define (hash2-proc pi rec-hash2)
+     (fxxor
+      (rec-hash2 (pi-type-domain pi))
+      (rec-hash2 (pi-type-codomain pi))))))
+
 
 
 (struct bound-name (index)
@@ -251,7 +277,7 @@
   (pi-type
    (telescope (list (in-scope () (fresh)) (in-scope (a) a) (in-scope (a b) b)))
    (in-scope (a b c) a))
-  
+
   (let ([x (fresh "hello")])
     (check-equal?
      (telescope (list (in-scope () x) (in-scope (a) a)))
