@@ -127,7 +127,15 @@
      (define (go item)
        (match-define (binder _ inst) (bindings-accessor item))
        (inst item i new-exprs))
-     (map go items))))
+     (map go items)))
+
+  #:methods gen:equal+hash
+  ((define (equal-proc tl1 tl2 rec-equal?)
+     (and (rec-equal? (telescope-items tl1) (telescope-items tl2))))
+   (define (hash-proc tl rec-hash)
+     (rec-hash (telescope-items tl)))
+   (define (hash2-proc tl rec-hash2)
+     (rec-hash2 (telescope-items tl)))))
 
 
 (struct bound-name (index)
@@ -230,10 +238,11 @@
 
 (module+ test
   (telescope (list (in-scope () (fresh)) (in-scope (a) a) (in-scope (a b) a)))
-  
-  (check-equal?
-   (telescope (list (in-scope () (fresh)) (in-scope (a) a)))
-   (telescope (list (in-scope () (fresh)) (in-scope (b) b))))
+
+  (let ([x (fresh "hello")])
+    (check-equal?
+     (telescope (list (in-scope () x) (in-scope (a) a)))
+     (telescope (list (in-scope () x) (in-scope (b) b)))))
 
   (check-equal?
    (in-scope (n m) n)
