@@ -1,5 +1,9 @@
 #lang racket/base
 
+;; This is based on David's ABT code, except that I hav for now removed the 'sorts' stuff,
+;; preferring only to work with numbers of bound variables. Separately, I will write a
+;; typechecker once I have this working at an untyped level.
+
 (require
  (for-syntax
   racket/base racket/list syntax/parse racket/syntax
@@ -17,8 +21,9 @@
   (define last-char (string-ref hint (sub1 (string-length hint))))
   (if (char=? last-char #\z)
       (string-append hint "a")
-      (string-append (substring hint 0 (sub1 (string-length hint)))
-                     (string (integer->char (add1 (char->integer last-char)))))))
+      (string-append
+       (substring hint 0 (sub1 (string-length hint)))
+       (string (integer->char (add1 (char->integer last-char)))))))
 
 (module+ test
   (check-equal? (string-incr "a") "b")
@@ -43,7 +48,6 @@
       (let ((x (next-name "a" (used-names))))
         (parameterize ([used-names (cons x (used-names))])
           (cons x (fresh-print-names (sub1 n)))))))
-
 
 
 (struct binder (abs inst) #:transparent)
@@ -191,5 +195,4 @@
 
 
 (module+ test
-  (in-scope (n) n)
-  )
+  (in-scope (n) n))
