@@ -100,6 +100,7 @@
      (fxxor (rec-hash2 (scope-valence sc))
             (rec-hash2 (scope-body sc))))))
 
+; TODO: implement equality
 (struct telescope (items)
   #:methods gen:custom-write
   [(define (write-proc tl port mode)
@@ -229,6 +230,11 @@
 
 (module+ test
   (telescope (list (in-scope () (fresh)) (in-scope (a) a) (in-scope (a b) a)))
+  
+  (check-equal?
+   (telescope (list (in-scope () (fresh)) (in-scope (a) a)))
+   (telescope (list (in-scope () (fresh)) (in-scope (b) b))))
+
   (check-equal?
    (in-scope (n m) n)
    (in-scope (a b) a)))
