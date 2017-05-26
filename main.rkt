@@ -100,7 +100,6 @@
      (fxxor (rec-hash2 (scope-valence sc))
             (rec-hash2 (scope-body sc))))))
 
-; TODO: implement equality
 (struct telescope (items)
   #:methods gen:custom-write
   [(define (write-proc tl port mode)
@@ -111,23 +110,23 @@
          ([i (in-range 0 num-items)]
           [x temps]
           [item items])
-       (define body (inst item (take temps i)))
-       (fprintf port "~a:~a~a" x body (if (< i (- num-items 1)) ", " ""))))]
+       (define temps-slice (take temps i))
+       (fprintf port "~a:" x)
+       (parameterize ([used-names (append temps-slice (used-names))])
+         (fprintf port "~a~a" (scope-body item) (if (< i (- num-items 1)) ", " "")))))]
 
   #:property prop:bindings
   (binder
    (lambda (tl frees i)
-     (define items (telescope-items tl))
      (define (go item)
        (match-define (binder abs _) (bindings-accessor item))
        (abs item frees i))
-     (telescope (map go items)))
+     (telescope (map go (telescope-items tl))))
    (lambda (tl i new-exprs)
-     (define items (telescope-items tl))
      (define (go item)
        (match-define (binder _ inst) (bindings-accessor item))
        (inst item i new-exprs))
-     (map go items)))
+     (map go (telescope-items tl))))
 
   #:methods gen:equal+hash
   ((define (equal-proc tl1 tl2 rec-equal?)
@@ -136,6 +135,18 @@
      (rec-hash (telescope-items tl)))
    (define (hash2-proc tl rec-hash2)
      (rec-hash2 (telescope-items tl)))))
+
+; TODO: implement binder
+; TODO: implement equal+hash
+(struct pi-type (domain codomain)
+  #:methods gen:custom-write
+  [[define (write-proc pi port mode)
+     (match-define (pi-type tl sc) pi)
+     (match-define (scope vl body) sc)
+     (define temps (fresh-print-names vl))
+     (fprintf port "{~a}" tl)
+     (parameterize ([used-names (append temps (used-names))])
+       (fprintf port " --> ~a" body))]])
 
 
 (struct bound-name (index)
@@ -220,8 +231,8 @@
 
 (define-match-expander in-scope
   ; destructor
-    (lambda (stx)
-      (syntax-parse stx
+  (lambda (stx)
+    (syntax-parse stx
       [(_ (x:id ...) body:expr)
        (with-syntax ([var-count (length (syntax->list #'(x ...)))])
          #'(? (lambda (sc) (and (scope? sc) (= (scope-valence sc) var-count)))
@@ -237,8 +248,10 @@
              (abs (list x ...) body))))])))
 
 (module+ test
-  (telescope (list (in-scope () (fresh)) (in-scope (a) a) (in-scope (a b) a)))
-
+  (pi-type
+   (telescope (list (in-scope () (fresh)) (in-scope (a) a) (in-scope (a b) b)))
+   (in-scope (a b c) a))
+  
   (let ([x (fresh "hello")])
     (check-equal?
      (telescope (list (in-scope () x) (in-scope (a) a)))
