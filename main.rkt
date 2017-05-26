@@ -61,7 +61,7 @@
 (define (bindings? v)
   (has-prop:bindings? v))
 
-; TODO: define equal+hash
+
 (struct scope (valence body)
   #:methods gen:custom-write
   [(define (write-proc sc port mode)
@@ -99,6 +99,35 @@
    (define (hash2-proc sc rec-hash2)
      (fxxor (rec-hash2 (scope-valence sc))
             (rec-hash2 (scope-body sc))))))
+
+(struct telescope (items)
+  #:methods gen:custom-write
+  [(define (write-proc tl port mode)
+     (define items (telescope-items tl))
+     (define num-items (length items))
+     (define temps (fresh-print-names num-items))
+     (for/list
+         ([i (in-range 0 num-items)]
+          [x temps]
+          [item items])
+       (define body (inst item (take temps i)))
+       (fprintf port "~a:~a~a" x body (if (< i (- num-items 1)) ", " ""))))]
+
+  #:property prop:bindings
+  (binder
+   (lambda (tl frees i)
+     (define items (telescope-items tl))
+     (define (go item)
+       (match-define (binder abs _) (bindings-accessor item))
+       (abs item frees i))
+     (telescope (map go items)))
+   (lambda (tl i new-exprs)
+     (define items (telescope-items tl))
+     (define (go item)
+       (match-define (binder _ inst) (bindings-accessor item))
+       (inst item i new-exprs))
+     (map go items))))
+
 
 (struct bound-name (index)
   #:transparent
@@ -176,23 +205,30 @@
       (abs closed-expr frees 0)))
   (scope (length frees) open-expr))
 
+(define (auto-inst sc)
+  (define frees (build-list (scope-valence sc) (lambda (i) (fresh))))
+  (cons frees (inst sc frees)))
+
 (define-match-expander in-scope
-  (lambda (stx)
-    (syntax-parse stx
+  ; destructor
+    (lambda (stx)
+      (syntax-parse stx
       [(_ (x:id ...) body:expr)
        (with-syntax ([var-count (length (syntax->list #'(x ...)))])
          #'(? (lambda (sc) (and (scope? sc) (= (scope-valence sc) var-count)))
-              (app auto-inst
-                   (cons (list x ...) body))))]))
+              (app auto-inst (cons (list x ...) body))))]))
+
+  ; constructor
   (lambda (stx)
     (syntax-parse stx
-      [(_ (x:id ...)
-          body:expr)
+      [(_ (x:id ...) body:expr)
        (with-syntax ([(x-str ...) (map symbol->string (syntax->datum #'(x ...)))])
          (syntax/loc stx
            (let ([x (fresh x-str)] ...)
              (abs (list x ...) body))))])))
 
-
 (module+ test
-  (in-scope (n) n))
+  (telescope (list (in-scope () (fresh)) (in-scope (a) a) (in-scope (a b) a)))
+  (check-equal?
+   (in-scope (n m) n)
+   (in-scope (a b) a)))
