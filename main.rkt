@@ -374,9 +374,18 @@
 (define (snoc xs x)
   (append xs (list x)))
 
+(define ctx?
+  (listof (cons/c free-name? pi-type?)))
+
+(define rtype?
+  (or/c TYPE? application?))
+
+(define type?
+  (or/c pi-type? rtype?))
+
 (define/contract
   (ctx-set ctx x ty)
-  (-> any/c free-name? pi-type? any/c)
+  (-> ctx? free-name? pi-type? ctx?)
   (dict-set ctx x ty))
 
 ; returns an extended context together with a list of variables for instantiation
@@ -395,7 +404,7 @@
 
 (define/contract
   (chk-type ctx ty)
-  (-> any/c (or/c pi-type? TYPE? application?) any/c)
+  (-> ctx? type? any/c)
   (match ty
     [(pi-type tele cod)
      (match (chk-ctx ctx tele)
@@ -405,7 +414,7 @@
 
 (define/contract
   (chk-rtype ctx rty)
-  (-> any/c (or/c TYPE? application?) any/c)
+  (-> ctx? rtype? any/c)
   (match rty
     [(TYPE) 'ok]
     [application?
@@ -414,7 +423,7 @@
 
 (define/contract
   (chk-spine ctx tele spine)
-  (-> any/c (listof scope?) (listof lambda-op?) any/c)
+  (-> ctx? (listof scope?) (listof lambda-op?) pair?)
   (define (aux ctx env tele spine)
     (match* (tele spine)
       [('() '()) 'ok]
@@ -425,7 +434,7 @@
 
 (define/contract
   (chk-ntm ctx ntm ty)
-  (-> any/c lambda-op? any/c any/c)
+  (-> ctx? lambda-op? pi-type? any/c)
   (match* (ntm ty)
     [((lambda-op sc) (pi-type tele cod))
      (match (chk-ctx ctx tele)
@@ -435,7 +444,7 @@
 
 (define/contract
   (inf-rtm ctx rtm)
-  (-> any/c application? any/c)
+  (-> ctx? application? rtype?)
   (match rtm
     [(application x spine)
      (match (dict-ref ctx x)
@@ -445,7 +454,7 @@
 
 (define/contract
   (chk-rtm ctx rtm rty)
-  (-> any/c application? (or/c TYPE? application?) any/c)
+  (-> ctx? application? rtype? any/c)
   (printf "chk-rtm: ~a\n" rtm)
   (if (equal? (inf-rtm ctx rtm) rty)
       'ok
