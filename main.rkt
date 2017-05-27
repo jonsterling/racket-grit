@@ -415,7 +415,9 @@
 (define (chk-ntm ctx ntm ty)
   (match* (ntm ty)
     [((lambda-op sc) (pi-type tele cod))
-     (error "Todo")]))
+     (match (chk-ctx ctx tele)
+       [(cons ctx xs)
+        (chk-rtm ctx (inst sc xs) (inst cod xs))])]))
 
 (define (inf-rtm ctx rtm)
   (match rtm
@@ -424,6 +426,11 @@
        [(pi-type tele cod)
         (chk-spine ctx tele spine)
         (inst cod spine)])]))
+
+(define (chk-rtm ctx rtm rty)
+  (if (equal? (inf-rtm ctx rtm) rty)
+      'ok
+      (error "Type mismatch")))
 
 (module+ test
   (let ([x (fresh "hello")])
