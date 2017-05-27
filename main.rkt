@@ -461,9 +461,14 @@
    (lam (n m) n)
    (lam (a b) a))
 
-  (chk-type
-   '()
-   (Π (x (Π TYPE)) ($ x)))
+
+
+
+  (chk-type '() (Π (TYPE)))
+
+  ;; for some reason, I get an error when trying to use the notation macros:
+  (define welp2 (Π (x (Π (TYPE))) (TYPE)))
+
 
 
   (let ([x (fresh "hi")])
