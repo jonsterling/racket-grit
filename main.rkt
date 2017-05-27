@@ -430,7 +430,7 @@
 
 (define/contract
   (chk-spine ctx tele spine)
-  (-> ctx? tele? spine? pair?)
+  (-> ctx? tele? spine? any/c)
   (define (aux ctx env tele spine)
     (match* (tele spine)
       [('() '()) 'ok]
@@ -477,13 +477,9 @@
    (lam (n m) n)
    (lam (a b) a))
 
-
-
-
-  (chk-type '() (Π (TYPE)))
-
-  ;; for some reason, I get an error when trying to use the notation macros:
-  (define welp2 (Π (x (Π (TYPE))) (TYPE)))
+  (chk-type
+   '()
+   (Π (x (Π (TYPE))) ($ x)))
 
 
 
