@@ -383,13 +383,21 @@
 (define type?
   (or/c pi-type? rtype?))
 
+(define tele?
+  (listof scope?))
+
+(define spine?
+  (listof lambda-op?))
+
 (define/contract
   (ctx-set ctx x ty)
   (-> ctx? free-name? pi-type? ctx?)
   (dict-set ctx x ty))
 
 ; returns an extended context together with a list of variables for instantiation
-(define (chk-ctx ctx tele)
+(define/contract
+  (chk-ctx ctx tele)
+  (-> ctx? tele? (cons/c ctx? (listof free-name?)))
   (define (aux ctx xs tele)
     (match tele
       ['() (cons ctx xs)]
@@ -423,7 +431,7 @@
 
 (define/contract
   (chk-spine ctx tele spine)
-  (-> ctx? (listof scope?) (listof lambda-op?) pair?)
+  (-> ctx? tele? spine? pair?)
   (define (aux ctx env tele spine)
     (match* (tele spine)
       [('() '()) 'ok]
