@@ -155,7 +155,9 @@
       [(_ (x:id e:expr) ...)
        (syntax/loc stx (make-telescope (tele (x e) ...)))])))
 
+
 (define-match-expander telescope telescope-expander telescope-expander)
+
 
 (struct pi-type (domain codomain)
   #:methods gen:custom-write
@@ -194,6 +196,14 @@
       (rec-hash2 (pi-type-domain pi))
       (rec-hash2 (pi-type-codomain pi))))))
 
+
+(define-for-syntax Π-expander
+  (lambda (stx)
+    (syntax-parse stx
+      [(_ (x:id e:expr) ... cod:expr)
+       (syntax/loc stx (pi-type (telescope (x e) ...) (in-scope (x ...) cod)))])))
+
+(define-match-expander Π Π-expander Π-expander)
 
 
 (struct bound-name (index)
@@ -296,17 +306,12 @@
 
 
 (module+ test
-  (pi-type
-   (telescope
-    (a (fresh))
-    (b a)
-    (c b))
-   (in-scope (a b c) a))
+  (Π (a (fresh)) (b a) (c b) a)
 
   (let ([x (fresh "hello")])
     (check-equal?
-     (telescope (a x) (b a))
-     (telescope (b x) (c b))))
+     (Π (a x) (b a) b)
+     (Π (b x) (c b) c)))
 
   (check-equal?
    (in-scope (n m) n)
