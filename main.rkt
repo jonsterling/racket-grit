@@ -383,18 +383,18 @@
       [(cons sc tele)
        (let* ([x (fresh)]
               [ty (inst sc xs)]
-              [ctx' (dict-set ctx x ty)]
-              [xs' (snoc xs x)])
+              [ctx (dict-set ctx x ty)]
+              [xs (snoc xs x)])
          (chk-type ctx ty)
-         (aux ctx' xs' tele))]))
+         (aux ctx xs tele))]))
   (aux ctx '() tele))
 
 (define (chk-type ctx ty)
   (match ty
     [(pi-type tele cod)
      (match (chk-ctx ctx tele)
-       [(cons ctx' xs)
-        (chk-rtype ctx' (inst cod xs))])]))
+       [(cons ctx xs)
+        (chk-rtype ctx (inst cod xs))])]))
 
 (define (chk-rtype ctx rty)
   (match rty
