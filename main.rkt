@@ -218,12 +218,12 @@
   (binder
    (lambda (pi frees i)
      (match-define (pi-type tl sc) pi)
-     (match-define (binder abs-tl _) (bindings/telescope tl))
+     (match-define (binder abs-tl _) bindings/telescope)
      (match-define (binder abs-sc _) (bindings-accessor sc))
      (pi (abs-tl tl frees i) (abs-sc sc frees i)))
    (lambda (pi i new-exprs)
      (match-define (pi-type tl sc) pi)
-     (match-define (binder _ inst-tl) (bindings/telescope tl))
+     (match-define (binder _ inst-tl) bindings/telescope)
      (match-define (binder _ inst-sc) (bindings-accessor sc))
      (pi (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
 
@@ -374,22 +374,28 @@
 (define (snoc xs x)
   (append xs (list x)))
 
+(define/contract
+  (ctx-set ctx x ty)
+  (-> any/c free-name? pi-type? any/c)
+  (dict-set ctx x ty))
 
 ; returns an extended context together with a list of variables for instantiation
 (define (chk-ctx ctx tele)
   (define (aux ctx xs tele)
     (match tele
-      [nil (cons ctx xs)]
+      ['() (cons ctx xs)]
       [(cons sc tele)
        (let* ([x (fresh)]
               [ty (inst sc xs)]
-              [ctx (dict-set ctx x ty)]
+              [ctx (ctx-set ctx x ty)]
               [xs (snoc xs x)])
          (chk-type ctx ty)
          (aux ctx xs tele))]))
   (aux ctx '() tele))
 
-(define (chk-type ctx ty)
+(define/contract
+  (chk-type ctx ty)
+  (-> any/c (or/c pi-type? TYPE? application?) any/c)
   (match ty
     [(pi-type tele cod)
      (match (chk-ctx ctx tele)
@@ -397,30 +403,39 @@
         (chk-rtype ctx (inst cod xs))])]
     [rty (chk-rtype ctx rty)]))
 
-(define (chk-rtype ctx rty)
+(define/contract
+  (chk-rtype ctx rty)
+  (-> any/c (or/c TYPE? application?) any/c)
   (match rty
     [(TYPE) 'ok]
-    [rtm
-     (match (inf-rtm ctx rtm)
+    [application?
+     (match (inf-rtm ctx rty)
        [(TYPE) 'ok])]))
 
-(define (chk-spine ctx tele spine)
+(define/contract
+  (chk-spine ctx tele spine)
+  (-> any/c (listof scope?) (listof lambda-op?) any/c)
   (define (aux ctx env tele spine)
     (match* (tele spine)
-      [(nil nil) 'ok]
+      [('() '()) 'ok]
       [((cons sc tele) (cons ntm spine))
        (chk-ntm ctx ntm (inst sc env))
        (aux ctx (snoc env ntm) tele spine)]))
   (aux ctx '() tele spine))
 
-(define (chk-ntm ctx ntm ty)
+(define/contract
+  (chk-ntm ctx ntm ty)
+  (-> any/c lambda-op? any/c any/c)
   (match* (ntm ty)
     [((lambda-op sc) (pi-type tele cod))
      (match (chk-ctx ctx tele)
        [(cons ctx xs)
+        (printf "chk-ntm: got ctx ~a and vars ~a" ctx xs)
         (chk-rtm ctx (inst sc xs) (inst cod xs))])]))
 
-(define (inf-rtm ctx rtm)
+(define/contract
+  (inf-rtm ctx rtm)
+  (-> any/c application? any/c)
   (match rtm
     [(application x spine)
      (match (dict-ref ctx x)
@@ -428,7 +443,10 @@
         (chk-spine ctx tele spine)
         (inst cod spine)])]))
 
-(define (chk-rtm ctx rtm rty)
+(define/contract
+  (chk-rtm ctx rtm rty)
+  (-> any/c application? (or/c TYPE? application?) any/c)
+  (printf "chk-rtm: ~a\n" rtm)
   (if (equal? (inf-rtm ctx rtm) rty)
       'ok
       (error "Type mismatch")))
@@ -445,7 +463,7 @@
 
   (chk-type
    '()
-   (Π (x (TYPE)) (lam () ($ x))))
+   (Π (x (Π TYPE)) ($ x)))
 
 
   (let ([x (fresh "hi")])
