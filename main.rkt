@@ -137,7 +137,7 @@
      (define valence (scope-valence sc))
      (define body (scope-body sc))
      (match-define (binder _ inst) (bindings-accessor body))
-     (scope valence (inst body (+ i valence)) new-exprs)))
+     (scope valence (inst body (+ i valence) new-exprs))))
   #:methods gen:equal+hash
   ((define (equal-proc sc1 sc2 rec-equal?)
      (and (rec-equal? (scope-valence sc1) (scope-valence sc2))
@@ -261,7 +261,7 @@
    (lambda (lam i new-exprs)
      (match-define (lambda-op sc) lam)
      (match-define (binder _ inst) (bindings-accessor sc))
-     (lam (inst sc i new-exprs)))))
+     (lambda-op (inst sc i new-exprs)))))
 
 
 ;; the TYPE type
@@ -351,7 +351,7 @@
 (define-for-syntax $-expander
   (lambda (stx)
     (syntax-parse stx
-      [(_ x:id e:expr ...)
+      [(_ x:expr e:expr ...)
        (syntax/loc stx (application x (list e ...)))])))
 
 (define-match-expander $ $-expander $-expander)
