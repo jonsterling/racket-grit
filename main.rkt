@@ -266,6 +266,19 @@
      (lam (inst sc i new-exprs)))))
 
 
+;; the TYPE type
+(struct TYPE ()
+  #:transparent
+  #:methods gen:custom-write
+  ((define (write-proc ty port mode)
+     (fprintf port "TYPE")))
+  
+  #:property prop:bindings
+  (binder
+   (lambda (ty frees i) ty)
+   (lambda (ty i new-exprs) ty)))
+
+
 (define-match-expander in-scope
   ; destructor
   (lambda (stx)
@@ -322,7 +335,7 @@
 
 
 (module+ test
-  (Π (a (fresh)) (b a) (c b) a)
+  (Π (a (fresh)) (b a) (c b) (TYPE))
 
   (let ([x (fresh "hello")])
     (check-equal?
