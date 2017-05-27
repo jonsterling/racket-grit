@@ -100,64 +100,29 @@
      (fxxor (rec-hash2 (scope-valence sc))
             (rec-hash2 (scope-body sc))))))
 
-(struct telescope (items)
-  #:omit-define-syntaxes
-  #:extra-constructor-name make-telescope
-  #:transparent
-  #:methods gen:custom-write
-  [(define (write-proc tl port mode)
-     (define items (telescope-items tl))
-     (define num-items (length items))
-     (define temps (fresh-print-names num-items))
-     (for/list
-         ([i (in-range 0 num-items)]
-          [x temps]
-          [item items])
-       (define temps-slice (take temps i))
-       (fprintf port "~a:" x)
-       (parameterize ([used-names (append temps-slice (used-names))])
-         (fprintf port "~a~a" (scope-body item) (if (< i (- num-items 1)) ", " "")))))]
-  #:property prop:bindings
+(define (write-proc/telescope cells port mode)
+  (define len (length cells))
+  (define temps (fresh-print-names len))
+  (for/list ([i (in-range 0 len)]
+             [x temps]
+             [cell cells])
+    (define slice (take temps i))
+    (fprintf port "~a:" x)
+    (parameterize ([used-names (append slice (used-names))])
+      (fprintf port "~a~a" (scope-body cell) (if (< i (- len 1)) ", " "")))))
+
+(define bindings/telescope
   (binder
-   (lambda (tl frees i)
-     (define (go item)
-       (match-define (binder abs _) (bindings-accessor item))
-       (abs item frees i))
-     (make-telescope (map go (telescope-items tl))))
-   (lambda (tl i new-exprs)
-     (define (go item)
-       (match-define (binder _ inst) (bindings-accessor item))
-       (inst item i new-exprs))
-     (map go (telescope-items tl)))))
-
-
-(define-for-syntax tele-expander
-  (lambda (stx)
-    (define (make-tele bound todo)
-      (syntax-parse todo
-        [((x:id e:expr) (y:id e2:expr) ...)
-         (with-syntax ([bound bound]
-                       [rhs (make-tele (append bound (list #'x))
-                                       #'((y e2) ...))])
-           #'(cons (in-scope bound e)
-                   rhs))]
-        [() #''()]))
-    (syntax-parse stx
-      [(_ (x:id e:expr) ...)
-       (make-tele '() #'((x e) ...))])))
-
-(define-match-expander tele
-  tele-expander tele-expander)
-
-(define-for-syntax telescope-expander
-  (lambda (stx)
-    (syntax-parse stx
-      [(_ (x:id e:expr) ...)
-       (syntax/loc stx (make-telescope (tele (x e) ...)))])))
-
-
-(define-match-expander telescope telescope-expander telescope-expander)
-
+   (lambda (cells frees i)
+     (define (go cell)
+       (match-define (binder abs _) (bindings-accessor cells))
+       (abs cell frees i))
+     (map go cells))
+   (lambda (cells i new-exprs)
+     (define (go cell)
+       (match-define (binder _ inst) (bindings-accessor cell))
+       (inst cell i new-exprs))
+     (map go cells))))
 
 (struct pi-type (domain codomain)
   #:methods gen:custom-write
@@ -165,7 +130,9 @@
      (match-define (pi-type tl sc) pi)
      (match-define (scope vl body) sc)
      (define temps (fresh-print-names vl))
-     (fprintf port "{~a}" tl)
+     (fprintf port "{")
+     (write-proc/telescope tl port mode)
+     (fprintf port "}")
      (parameterize ([used-names (append temps (used-names))])
        (fprintf port " --> ~a" body))))
 
@@ -173,12 +140,12 @@
   (binder
    (lambda (pi frees i)
      (match-define (pi-type tl sc) pi)
-     (match-define (binder abs-tl _) (bindings-accessor tl))
+     (match-define (binder abs-tl _) (bindings/telescope tl))
      (match-define (binder abs-sc _) (bindings-accessor sc))
      (pi (abs-tl tl frees i) (abs-sc sc frees i)))
    (lambda (pi i new-exprs)
      (match-define (pi-type tl sc) pi)
-     (match-define (binder _ inst-tl) (bindings-accessor tl))
+     (match-define (binder _ inst-tl) (bindings/telescope tl))
      (match-define (binder _ inst-sc) (bindings-accessor sc))
      (pi (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
 
@@ -197,11 +164,30 @@
       (rec-hash2 (pi-type-codomain pi))))))
 
 
+
+(define-for-syntax tele-expander
+  (lambda (stx)
+    (define (make-tele bound todo)
+      (syntax-parse todo
+        [((x:id e:expr) (y:id e2:expr) ...)
+         (with-syntax ([bound bound]
+                       [rhs (make-tele (append bound (list #'x))
+                                       #'((y e2) ...))])
+          #'(cons (in-scope bound e)
+                  rhs))]
+        [() #''()]))
+    (syntax-parse stx
+      [(_ (x:id e:expr) ...)
+       (make-tele '() #'((x e) ...))])))
+
+(define-match-expander tele
+  tele-expander tele-expander)
+
 (define-for-syntax Π-expander
   (lambda (stx)
     (syntax-parse stx
       [(_ (x:id e:expr) ... cod:expr)
-       (syntax/loc stx (pi-type (telescope (x e) ...) (in-scope (x ...) cod)))])))
+       (syntax/loc stx (pi-type (tele (x e) ...) (in-scope (x ...) cod)))])))
 
 (define-match-expander Π Π-expander Π-expander)
 
