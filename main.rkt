@@ -394,7 +394,6 @@
   (-> ctx? free-name? pi-type? ctx?)
   (dict-set ctx x ty))
 
-; returns an extended context together with a list of variables for instantiation
 (define/contract
   (chk-ctx ctx tele)
   (-> ctx? tele? (cons/c ctx? (listof free-name?)))
