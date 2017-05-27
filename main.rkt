@@ -404,7 +404,13 @@
        [TYPE 'ok])]))
 
 (define (chk-spine ctx tele spine)
-  (error "TODO!"))
+  (define (aux ctx env tele spine)
+    (match* (tele spine)
+      [(nil nil) 'ok]
+      [((cons sc tele) (cons ntm spine))
+       (chk-ntm ctx ntm (inst sc env))
+       (aux ctx (snoc env ntm) tele spine)]))
+  (aux ctx '() tele spine))
 
 (define (chk-ntm ctx ntm ty)
   (match* (ntm ty)
