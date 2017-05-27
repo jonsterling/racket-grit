@@ -443,6 +443,10 @@
    (lam (n m) n)
    (lam (a b) a))
 
+  (chk-type
+   '()
+   (Π (x (TYPE)) (lam () ($ x))))
+
 
   (let ([x (fresh "hi")])
     (check-equal?
