@@ -252,8 +252,18 @@
      (define binder
        (string-join (for/list ([x temps]) (format "~a" x)) ", "))
      (parameterize ([used-names (append temps (used-names))])
-       (fprintf port "[~a]~a" binder (scope-body sc))))))
+       (fprintf port "[~a]~a" binder (scope-body sc)))))
 
+  #:property prop:bindings
+  (binder
+   (lambda (lam frees i)
+     (match-define (lambda-op sc) lam)
+     (match-define (binder abs _) (bindings-accessor sc))
+     (lambda-op (abs sc frees i)))
+   (lambda (lam i new-exprs)
+     (match-define (lambda-op sc) lam)
+     (match-define (binder _ inst) (bindings-accessor sc))
+     (lam (inst sc i new-exprs)))))
 
 
 (define-match-expander in-scope
