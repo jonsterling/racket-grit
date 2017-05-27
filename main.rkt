@@ -220,12 +220,12 @@
      (match-define (pi-type tl sc) pi)
      (match-define (binder abs-tl _) bindings/telescope)
      (match-define (binder abs-sc _) (bindings-accessor sc))
-     (pi (abs-tl tl frees i) (abs-sc sc frees i)))
+     (pi-type (abs-tl tl frees i) (abs-sc sc frees i)))
    (lambda (pi i new-exprs)
      (match-define (pi-type tl sc) pi)
      (match-define (binder _ inst-tl) bindings/telescope)
      (match-define (binder _ inst-sc) (bindings-accessor sc))
-     (pi (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
+     (pi-type (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
 
   #:methods gen:equal+hash
   ((define (equal-proc pi1 pi2 rec-equal?)
