@@ -304,8 +304,9 @@
        [(bound-name ix) (application (bound-name ix) new-spine)]
        [(free-name sym hint) (application (free-name sym hint) new-spine)]
        [(lambda-op sc)
-        (match-let ([(binder _ inst-sc) (bindings-accessor sc)])
-          (inst-sc sc i new-spine))]))))
+        (define body (scope-body sc))
+        (match-let ([(binder _ inst-body) (bindings-accessor body)])
+          (inst-body body i new-spine))]))))
 
 (define-match-expander in-scope
   ; destructor
