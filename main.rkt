@@ -131,6 +131,24 @@
      (map go (telescope-items tl)))))
 
 
+(define-for-syntax tele-expander
+  (lambda (stx)
+    (define (make-tele bound todo)
+      (syntax-parse todo
+        [((x:id e:expr) (y:id e2:expr) ...)
+         (with-syntax ([bound bound]
+                       [rhs (make-tele (append bound (list #'x))
+                                       #'((y e2) ...))])
+           #'(cons (in-scope bound e)
+                   rhs))]
+        [() #''()]))
+    (syntax-parse stx
+      [(_ (x:id e:expr) ...)
+       (make-tele '() #'((x e) ...))])))
+
+(define-match-expander tele
+  tele-expander tele-expander)
+
 (define-for-syntax telescope-expander
   (lambda (stx)
     (syntax-parse stx
@@ -276,29 +294,13 @@
            (let ([x (fresh x-str)] ...)
              (abs (list x ...) body))))])))
 
-(define-for-syntax tele-expander
-  (lambda (stx)
-    (define (make-tele bound todo)
-      (syntax-parse todo
-        [((x:id e:expr) (y:id e2:expr) ...)
-         (with-syntax ([bound bound]
-                       [rhs (make-tele (append bound (list #'x))
-                                       #'((y e2) ...))])
-          #'(cons (in-scope bound e)
-                  rhs))]
-        [() #''()]))
-    (syntax-parse stx
-      [(_ (x:id e:expr) ...)
-       (make-tele '() #'((x e) ...))])))
-
-(define-match-expander tele
-  tele-expander tele-expander)
 
 (module+ test
   (pi-type
-   (telescope (a (fresh))
-              (b a)
-              (c b))
+   (telescope
+    (a (fresh))
+    (b a)
+    (c b))
    (in-scope (a b c) a))
 
   (let ([x (fresh "hello")])
@@ -322,7 +324,7 @@
      (tele (z x*) (z z))))
 
   (let ([x (fresh "hi")])
-    (check-equal? (match (tele (y x) (z y))
-                    [(tele (m v) (n m))
-                     v])
-                  x)))
+    (check-equal?
+     (match (tele (y x) (z y))
+       [(tele (m v) (n m)) v])
+     x)))
