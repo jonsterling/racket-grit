@@ -62,6 +62,64 @@
   (has-prop:bindings? v))
 
 
+
+
+(struct bound-name (index)
+  #:transparent
+  #:property prop:bindings
+  (binder
+   (lambda (expr frees i) expr)
+   (lambda (expr i new-exprs)
+     (define j (- (bound-name-index expr) i))
+     (if (<= 0 j (add1 (length new-exprs)))
+         (list-ref new-exprs j)
+         expr)))
+
+  #:methods gen:custom-write
+  ((define (write-proc x port mode)
+     (define print-x
+       (let loop ((i (bound-name-index x))
+                  (used (used-names)))
+         (if (zero? i)
+             (if (pair? used)
+                 (car used)
+                 (format "#<~a>" (bound-name-index x)))
+             (if (pair? used)
+                 (loop (sub1 i) (cdr used))
+                 (format "#<~a>" (bound-name-index x))))))
+     (write-string print-x port))))
+
+(struct free-name (sym hint)
+  #:property prop:bindings
+  (binder
+   (lambda (expr frees i)
+     (let ((j (index-of frees expr (lambda (x y) (eqv? (free-name-sym x) (free-name-sym y))))))
+       (if j (bound-name (+ i j)) expr)))
+   (lambda (expr i new-exprs)
+     expr))
+  #:methods gen:custom-write
+  ((define (write-proc x port mode)
+     (fprintf port "#<free:~a>" (free-name-sym x))))
+  #:methods gen:equal+hash
+  ((define (equal-proc fn1 fn2 rec-equal?)
+     (eqv? (free-name-sym fn1) (free-name-sym fn2)))
+   (define (hash-proc fn rec-hash)
+     (rec-hash (free-name-sym fn)))
+   (define (hash2-proc fn rec-hash2)
+     (rec-hash2 (free-name-sym fn)))))
+
+(define (fresh (str "x"))
+  (free-name (gensym str) str))
+
+
+(define/contract (distinct? frees)
+  (-> (listof free-name?) boolean?)
+  (define seen (mutable-set))
+  (for/and ([var frees])
+    (begin0 (not (set-member? seen var))
+      (set-add! seen var))))
+
+
 (struct scope (valence body)
   #:methods gen:custom-write
   [(define (write-proc sc port mode)
@@ -117,6 +175,35 @@
        (inst cell i new-exprs))
      (map go cells))))
 
+
+
+(define/contract (inst sc vals)
+  (->i ((sc scope?)
+        (vals list?))
+       #:pre (sc vals) (= (scope-valence sc) (length vals))
+       (result any/c))
+  (define open-expr (scope-body sc))
+  (match-let ([(binder _ inst) (bindings-accessor open-expr)])
+    (inst open-expr 0 vals)))
+
+
+(define/contract (abs frees closed-expr)
+  (->i ((frees (and/c (listof free-name?) distinct?))
+        (closed-expr bindings?))
+       (result
+        (frees)
+        (and/c scope? (lambda (r) (= (scope-valence r) (length frees))))))
+  (define open-expr
+    (match-let ([(binder abs _) (bindings-accessor closed-expr)])
+      (abs closed-expr frees 0)))
+  (scope (length frees) open-expr))
+
+(define (auto-inst sc)
+  (define frees (build-list (scope-valence sc) (lambda (i) (fresh))))
+  (cons frees (inst sc frees)))
+
+
+
 (struct pi-type (domain codomain)
   #:methods gen:custom-write
   ((define (write-proc pi port mode)
@@ -168,6 +255,7 @@
        (fprintf port "[~a]~a" binder (scope-body sc))))))
 
 
+
 (define-match-expander in-scope
   ; destructor
   (lambda (stx)
@@ -194,8 +282,8 @@
          (with-syntax ([bound bound]
                        [rhs (make-tele (append bound (list #'x))
                                        #'((y e2) ...))])
-          #'(cons (in-scope bound e)
-                  rhs))]
+           #'(cons (in-scope bound e)
+                   rhs))]
         [() #''()]))
     (syntax-parse stx
       [(_ (x:id e:expr) ...)
@@ -221,85 +309,6 @@
 (define-match-expander lam lam-expander lam-expander)
 
 
-(struct bound-name (index)
-  #:transparent
-  #:property prop:bindings
-  (binder
-   (lambda (expr frees i) expr)
-   (lambda (expr i new-exprs)
-     (define j (- (bound-name-index expr) i))
-     (if (<= 0 j (add1 (length new-exprs)))
-         (list-ref new-exprs j)
-         expr)))
-
-  #:methods gen:custom-write
-  ((define (write-proc x port mode)
-     (define print-x
-       (let loop ((i (bound-name-index x))
-                  (used (used-names)))
-         (if (zero? i)
-             (if (pair? used)
-                 (car used)
-                 (format "#<~a>" (bound-name-index x)))
-             (if (pair? used)
-                 (loop (sub1 i) (cdr used))
-                 (format "#<~a>" (bound-name-index x))))))
-     (write-string print-x port))))
-
-(struct free-name (sym hint)
-  #:property prop:bindings
-  (binder
-   (lambda (expr frees i)
-     (let ((j (index-of frees expr (lambda (x y) (eqv? (free-name-sym x) (free-name-sym y))))))
-       (if j (bound-name (+ i j)) expr)))
-   (lambda (expr i new-exprs)
-     expr))
-  #:methods gen:custom-write
-  ((define (write-proc x port mode)
-     (fprintf port "#<free:~a>" (free-name-sym x))))
-  #:methods gen:equal+hash
-  ((define (equal-proc fn1 fn2 rec-equal?)
-     (eqv? (free-name-sym fn1) (free-name-sym fn2)))
-   (define (hash-proc fn rec-hash)
-     (rec-hash (free-name-sym fn)))
-   (define (hash2-proc fn rec-hash2)
-     (rec-hash2 (free-name-sym fn)))))
-
-(define (fresh (str "x"))
-  (free-name (gensym str) str))
-
-
-(define/contract (inst sc vals)
-  (->i ((sc scope?)
-        (vals list?))
-       #:pre (sc vals) (= (scope-valence sc) (length vals))
-       (result any/c))
-  (define open-expr (scope-body sc))
-  (match-let ([(binder _ inst) (bindings-accessor open-expr)])
-    (inst open-expr 0 vals)))
-
-(define/contract (distinct? frees)
-  (-> (listof free-name?) boolean?)
-  (define seen (mutable-set))
-  (for/and ([var frees])
-    (begin0 (not (set-member? seen var))
-      (set-add! seen var))))
-
-
-(define/contract (abs frees closed-expr)
-  (->i ((frees (and/c (listof free-name?) distinct?))
-        (closed-expr bindings?))
-       (result
-        (frees)
-        (and/c scope? (lambda (r) (= (scope-valence r) (length frees))))))
-  (define open-expr
-    (match-let ([(binder abs _) (bindings-accessor closed-expr)])
-      (abs closed-expr frees 0)))
-  (scope (length frees) open-expr))
-
-(define (auto-inst sc)
-  (define frees (build-list (scope-valence sc) (lambda (i) (fresh))))
-  (cons frees (inst sc frees)))
 
 
 (module+ test
