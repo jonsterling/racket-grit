@@ -294,7 +294,18 @@
        (abs arg frees i))
      (application (abs-var var frees i) (map go spine)))
    (lambda (ap i new-exprs)
-     (error "TODO: implement hereditary substitution"))))
+     (match-define (application var spine) ap)
+     (match-define (binder _ inst-var) (bindings-accessor var))
+     (define (go-arg arg)
+       (match-define (binder _ inst-arg) (bindings-accessor arg))
+       (inst-arg arg i new-exprs))
+     (define new-spine (map go-arg spine))
+     (match (inst-var var i new-exprs)
+       [(bound-name ix) (application (bound-name ix) new-spine)]
+       [(free-name sym hint) (application (free-name sym hint) new-spine)]
+       [(lambda-op sc)
+        (match-let ([(binder _ inst-sc) (bindings-accessor sc)])
+          (inst-sc sc i new-spine))]))))
 
 (define-match-expander in-scope
   ; destructor
