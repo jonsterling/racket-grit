@@ -66,16 +66,9 @@
   #:methods gen:custom-write
   [(define (write-proc sc port mode)
      (define temps (fresh-print-names (scope-valence sc)))
-     (define binder
-       (string-append
-        "⟨"
-        (string-join
-         (for/list ([x temps])
-           (format "~a" x))
-         ", ")
-        "⟩"))
+     (define binder (string-join (for/list ([x temps]) (format "~a" x)) ", "))
      (parameterize ([used-names (append temps (used-names))])
-       (fprintf port "#<sc ~a.~a>" binder (scope-body sc))))]
+       (fprintf port "#<sc ⟨~a⟩.~a>" binder (scope-body sc))))]
 
   #:property prop:bindings
   (binder
@@ -163,7 +156,35 @@
       (rec-hash2 (pi-type-domain pi))
       (rec-hash2 (pi-type-codomain pi))))))
 
+(struct lambda-op (scope)
+  #:transparent ;; should it be transparent? Not sure. - jms
+  #:methods gen:custom-write
+  ((define (write-proc lam port mode)
+     (match-define (lambda-op sc) lam)
+     (define temps (fresh-print-names (scope-valence sc)))
+     (define binder
+       (string-join (for/list ([x temps]) (format "~a" x)) ", "))
+     (parameterize ([used-names (append temps (used-names))])
+       (fprintf port "[~a]~a" binder (scope-body sc))))))
 
+
+(define-match-expander in-scope
+  ; destructor
+  (lambda (stx)
+    (syntax-parse stx
+      [(_ (x:id ...) body:expr)
+       (with-syntax ([var-count (length (syntax->list #'(x ...)))])
+         #'(? (lambda (sc) (and (scope? sc) (= (scope-valence sc) var-count)))
+              (app auto-inst (cons (list x ...) body))))]))
+
+  ; constructor
+  (lambda (stx)
+    (syntax-parse stx
+      [(_ (x:id ...) body:expr)
+       (with-syntax ([(x-str ...) (map symbol->string (syntax->datum #'(x ...)))])
+         (syntax/loc stx
+           (let ([x (fresh x-str)] ...)
+             (abs (list x ...) body))))])))
 
 (define-for-syntax tele-expander
   (lambda (stx)
@@ -190,6 +211,14 @@
        (syntax/loc stx (pi-type (tele (x e) ...) (in-scope (x ...) cod)))])))
 
 (define-match-expander Π Π-expander Π-expander)
+
+(define-for-syntax lam-expander
+  (lambda (stx)
+    (syntax-parse stx
+      [(_ (x:id ...) body:expr)
+       (syntax/loc stx (lambda-op (in-scope (x ...) body)))])))
+
+(define-match-expander lam lam-expander lam-expander)
 
 
 (struct bound-name (index)
@@ -272,24 +301,6 @@
   (define frees (build-list (scope-valence sc) (lambda (i) (fresh))))
   (cons frees (inst sc frees)))
 
-(define-match-expander in-scope
-  ; destructor
-  (lambda (stx)
-    (syntax-parse stx
-      [(_ (x:id ...) body:expr)
-       (with-syntax ([var-count (length (syntax->list #'(x ...)))])
-         #'(? (lambda (sc) (and (scope? sc) (= (scope-valence sc) var-count)))
-              (app auto-inst (cons (list x ...) body))))]))
-
-  ; constructor
-  (lambda (stx)
-    (syntax-parse stx
-      [(_ (x:id ...) body:expr)
-       (with-syntax ([(x-str ...) (map symbol->string (syntax->datum #'(x ...)))])
-         (syntax/loc stx
-           (let ([x (fresh x-str)] ...)
-             (abs (list x ...) body))))])))
-
 
 (module+ test
   (Π (a (fresh)) (b a) (c b) a)
@@ -300,8 +311,8 @@
      (Π (b x) (c b) c)))
 
   (check-equal?
-   (in-scope (n m) n)
-   (in-scope (a b) a))
+   (lam (n m) n)
+   (lam (a b) a))
 
   (let ([x (fresh "hi")])
     (check-equal?
