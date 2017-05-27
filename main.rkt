@@ -394,14 +394,15 @@
     [(pi-type tele cod)
      (match (chk-ctx ctx tele)
        [(cons ctx xs)
-        (chk-rtype ctx (inst cod xs))])]))
+        (chk-rtype ctx (inst cod xs))])]
+    [rty (chk-rtype ctx rty)]))
 
 (define (chk-rtype ctx rty)
   (match rty
-    [TYPE 'ok]
+    [(TYPE) 'ok]
     [rtm
      (match (inf-rtm ctx rtm)
-       [TYPE 'ok])]))
+       [(TYPE) 'ok])]))
 
 (define (chk-spine ctx tele spine)
   (define (aux ctx env tele spine)
