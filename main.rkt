@@ -369,7 +369,7 @@
 (define-match-expander $ $-expander $-expander)
 
 (module+ test
-  (Π (a (fresh)) (b ($  a)) (c ($ b)) ($ a))
+  (Π (a (fresh)) (b ($ a)) (c ($ b)) ($ a))
 
   (let ([x (fresh "hello")])
     (check-equal?
