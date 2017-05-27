@@ -9,7 +9,7 @@
   racket/base racket/list syntax/parse racket/syntax
   (for-syntax racket/base))
  racket/contract racket/fixnum racket/function racket/list racket/match racket/provide-syntax
- racket/set racket/string)
+ racket/set racket/string racket/dict)
 
 (module+ test
   (require rackunit))
@@ -341,14 +341,14 @@
       [(_ (x:id e:expr) ...)
        (make-tele '() #'((x e) ...))])))
 
-(define-match-expander tele
+(define-match-expander telescope
   tele-expander tele-expander)
 
 (define-for-syntax Π-expander
   (lambda (stx)
     (syntax-parse stx
       [(_ (x:id e:expr) ... cod:expr)
-       (syntax/loc stx (pi-type (tele (x e) ...) (in-scope (x ...) cod)))])))
+       (syntax/loc stx (pi-type (telescope (x e) ...) (in-scope (x ...) cod)))])))
 
 (define-match-expander Π Π-expander Π-expander)
 
@@ -368,9 +368,58 @@
 
 (define-match-expander $ $-expander $-expander)
 
-(module+ test
-  (Π (a (fresh)) (b ($ a)) (c ($ b)) ($ a))
 
+; a signature/context is an association list
+
+(define (snoc xs x)
+  (append xs (list x)))
+
+
+; returns an extended context together with a list of variables for instantiation
+(define (chk-ctx ctx tele)
+  (define (aux ctx xs tele)
+    (match tele
+      [nil (cons ctx xs)]
+      [(cons sc tele)
+       (let* ([x (fresh)]
+              [ty (inst sc xs)]
+              [ctx' (dict-set ctx x ty)]
+              [xs' (snoc xs x)])
+         (chk-type ctx ty)
+         (aux ctx' xs' tele))]))
+  (aux ctx '() tele))
+
+(define (chk-type ctx ty)
+  (match ty
+    [(pi-type tele cod)
+     (match (chk-ctx ctx tele)
+       [(cons ctx' xs)
+        (chk-rtype ctx' (inst cod xs))])]))
+
+(define (chk-rtype ctx rty)
+  (match rty
+    [TYPE 'ok]
+    [rtm
+     (match (inf-rtm ctx rtm)
+       [TYPE 'ok])]))
+
+(define (chk-spine ctx tele spine)
+  (error "TODO!"))
+
+(define (chk-ntm ctx ntm ty)
+  (match* (ntm ty)
+    [((lambda-op sc) (pi-type tele cod))
+     (error "Todo")]))
+
+(define (inf-rtm ctx rtm)
+  (match rtm
+    [(application x spine)
+     (match (dict-ref ctx x)
+       [(pi-type tele cod)
+        (chk-spine ctx tele spine)
+        (inst cod spine)])]))
+
+(module+ test
   (let ([x (fresh "hello")])
     (check-equal?
      (Π (a x) (b ($ a)) ($ b))
@@ -380,19 +429,20 @@
    (lam (n m) n)
    (lam (a b) a))
 
+
   (let ([x (fresh "hi")])
     (check-equal?
-     (tele (y x) (z y))
-     (tele (z x) (z z))))
+     (telescope (y x) (z y))
+     (telescope (z x) (z z))))
 
   (let ([x (fresh "hi")]
         [x* (fresh "hi")])
     (check-not-equal?
-     (tele (y x) (z y))
-     (tele (z x*) (z z))))
+     (telescope (y x) (z y))
+     (telescope (z x*) (z z))))
 
   (let ([x (fresh "hi")])
     (check-equal?
-     (match (tele (y x) (z y))
-       [(tele (m v) (n m)) v])
+     (match (telescope (y x) (z y))
+       [(telescope (m v) (n m)) v])
      x)))
