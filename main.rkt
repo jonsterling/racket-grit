@@ -62,8 +62,6 @@
   (has-prop:bindings? v))
 
 
-
-
 (struct bound-name (index)
   #:transparent
   #:property prop:bindings
@@ -272,12 +270,31 @@
   #:methods gen:custom-write
   ((define (write-proc ty port mode)
      (fprintf port "TYPE")))
-  
   #:property prop:bindings
   (binder
    (lambda (ty frees i) ty)
    (lambda (ty i new-exprs) ty)))
 
+;; TODO: implement hereditary substitution
+(struct application (var spine)
+  #:transparent
+  #:methods gen:custom-write
+  ((define (write-proc ap port mode)
+     (match-define (application x sp) ap)
+     (define spine (string-join (for/list ([x sp]) (format "~a" x))))
+     (fprintf port "~a[~a]" x spine)))
+
+  #:property prop:bindings
+  (binder
+   (lambda (ap frees i)
+     (match-define (application var spine) ap)
+     (match-define (binder abs-var _) (bindings-accessor var))
+     (define (go arg)
+       (match-define (binder abs _) (bindings-accessor arg))
+       (abs arg frees i))
+     (application (abs-var var frees i) (map go spine)))
+   (lambda (ap i new-exprs)
+     (error "TODO: implement hereditary substitution"))))
 
 (define-match-expander in-scope
   ; destructor
@@ -331,16 +348,21 @@
 
 (define-match-expander lam lam-expander lam-expander)
 
+(define-for-syntax $-expander
+  (lambda (stx)
+    (syntax-parse stx
+      [(_ x:id e:expr ...)
+       (syntax/loc stx (application x (list e ...)))])))
 
-
+(define-match-expander $ $-expander $-expander)
 
 (module+ test
-  (Π (a (fresh)) (b a) (c b) (TYPE))
+  (Π (a (fresh)) (b ($  a)) (c ($ b)) ($ a))
 
   (let ([x (fresh "hello")])
     (check-equal?
-     (Π (a x) (b a) b)
-     (Π (b x) (c b) c)))
+     (Π (a x) (b ($ a)) ($ b))
+     (Π (b x) (c ($ b)) ($ c))))
 
   (check-equal?
    (lam (n m) n)
