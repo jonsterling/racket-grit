@@ -492,11 +492,14 @@
    (lam (n m) n)
    (lam (a b) a))
 
-  ; TODO: these should get defined automatically by some fancy macro
+  ; TODO: pattern macros should get automatically generated!
   (define nat ($ (op-name 'NAT)))
   (define ze ($ (op-name 'ZE)))
   (define (su e) ($ (op-name 'SU) (lam () e)))
   (define (ifze n z s) ($ (op-name 'IFZE) (lam () n) (lam () z) s))
+  ; we should automatically generate a pattern like
+  ;    (ifze n z (x) s)
+  ; for the operator IFZE
 
   ; an example signature. we should add macros to make it more tolerable
   ; to write and read such signatures.
