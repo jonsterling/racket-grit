@@ -275,7 +275,6 @@
    (lambda (ty frees i) ty)
    (lambda (ty i new-exprs) ty)))
 
-;; TODO: implement hereditary substitution
 (struct application (var spine)
   #:transparent
   #:methods gen:custom-write
