@@ -164,7 +164,7 @@
   (binder
    (lambda (cells frees i)
      (define (go cell)
-       (match-define (binder abs _) (bindings-accessor cells))
+       (match-define (binder abs _) (bindings-accessor cell))
        (abs cell frees i))
      (map go cells))
    (lambda (cells i new-exprs)
