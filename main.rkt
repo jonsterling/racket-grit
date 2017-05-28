@@ -446,7 +446,6 @@
     [((lambda-op sc) (pi-type tele cod))
      (match (chk-ctx ctx tele)
        [(cons ctx xs)
-        (printf "chk-ntm: got ctx ~a and vars ~a" ctx xs)
         (chk-rtm ctx (inst sc xs) (inst cod xs))])]))
 
 (define/contract
@@ -462,7 +461,6 @@
 (define/contract
   (chk-rtm ctx rtm rty)
   (-> ctx? application? rtype? any/c)
-  (printf "chk-rtm: ~a\n" rtm)
   (if (equal? (inf-rtm ctx rtm) rty)
       'ok
       (error "Type mismatch")))
@@ -477,10 +475,11 @@
    (lam (n m) n)
    (lam (a b) a))
 
-  (chk-type
-   '()
-   (Π (x (Π (TYPE))) ($ x)))
+  (define my-tm
+    (Π (x (Π (TYPE))) ($ x)))
 
+  my-tm
+  (chk-type '() my-tm)
 
 
   (let ([x (fresh "hi")])
