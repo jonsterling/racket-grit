@@ -394,6 +394,11 @@
   (dict-set ctx x ty))
 
 (define/contract
+  (ctx-ref ctx x)
+  (-> ctx? free-name? pi-type?)
+  (dict-ref ctx x))
+
+(define/contract
   (chk-ctx ctx tele)
   (-> ctx? tele? (cons/c ctx? (listof free-name?)))
   (define (aux ctx xs tele)
@@ -452,7 +457,7 @@
   (-> ctx? application? rtype?)
   (match rtm
     [(application x spine)
-     (match (dict-ref ctx x)
+     (match (ctx-ref ctx x)
        [(pi-type tele cod)
         (chk-spine ctx tele spine)
         (inst cod spine)])]))
