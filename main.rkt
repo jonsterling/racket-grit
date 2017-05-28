@@ -106,6 +106,9 @@
    (define (hash2-proc fn rec-hash2)
      (rec-hash2 (free-name-sym fn)))))
 
+(define (op-name sym)
+  (free-name sym (symbol->string sym)))
+
 (define (fresh (str "x"))
   (free-name (gensym str) str))
 
@@ -325,6 +328,16 @@
            (let ([x (fresh x-str)] ...)
              (abs (list x ...) body))))])))
 
+(define-for-syntax sig-expander
+  (lambda (stx)
+    (syntax-parse stx
+      [(_ (x:id ty:expr) ...)
+       (with-syntax ([(x-var ...) (syntax->datum #'(x ...))])
+         (syntax/loc stx
+           (list (cons (free-name 'x (symbol->string 'x)) ty) ...)))])))
+
+(define-match-expander signature sig-expander sig-expander)
+
 (define-for-syntax tele-expander
   (lambda (stx)
     (define (make-tele bound todo)
@@ -479,12 +492,24 @@
    (lam (n m) n)
    (lam (a b) a))
 
-  (define my-tm
-    (Π (x (Π (TYPE))) ($ x)))
+  ; TODO: these should get defined automatically by some fancy macro
+  (define nat ($ (op-name 'NAT)))
+  (define ze ($ (op-name 'ZE)))
+  (define (su e) ($ (op-name 'SU) (lam () e)))
+  (define (ifze n z s) ($ (op-name 'IFZE) (lam () n) (lam () z) s))
 
-  my-tm
-  (chk-type '() my-tm)
+  ; an example signature. we should add macros to make it more tolerable
+  ; to write and read such signatures.
+  (define num-sig
+    (signature
+     (NAT (Π (TYPE)))
+     (ZE (Π nat))
+     (SU (Π (_ (Π nat)) nat))
+     (IFZE (Π (n (Π nat)) (z (Π nat)) (s (Π (x (Π nat)) nat)) nat))))
 
+  (check-equal?
+   (inf-rtm num-sig (ifze (su (su ze)) ze (lam (x) ($ x))))
+   nat)
 
   (let ([x (fresh "hi")])
     (check-equal?
