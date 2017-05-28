@@ -328,6 +328,7 @@
            (let ([x (fresh x-str)] ...)
              (abs (list x ...) body))))])))
 
+
 (define-for-syntax sig-expander
   (lambda (stx)
     (syntax-parse stx
@@ -493,10 +494,36 @@
    (lam (a b) a))
 
   ; TODO: pattern macros should get automatically generated!
-  (define nat ($ (op-name 'NAT)))
-  (define ze ($ (op-name 'ZE)))
-  (define (su e) ($ (op-name 'SU) (lam () e)))
-  (define (ifze n z s) ($ (op-name 'IFZE) (lam () n) (lam () z) s))
+  (define-for-syntax nat-expander
+    (lambda (stx)
+      (syntax-parse stx
+        [(_)
+         (syntax/loc stx ($ (free-name 'NAT "NAT")))])))
+
+  (define-for-syntax ze-expander
+    (lambda (stx)
+      (syntax-parse stx
+        [(_)
+         (syntax/loc stx ($ (free-name 'ZE "ZE")))])))
+
+  (define-for-syntax su-expander
+    (lambda (stx)
+      (syntax-parse stx
+        [(_ e:expr)
+         (syntax/loc stx ($ (free-name 'SU "SU") (lam () e)))])))
+
+  (define-for-syntax ifze-expander
+    (lambda (stx)
+      (syntax-parse stx
+        [(_ n:expr z:expr (x:id) s:expr)
+         (syntax/loc stx
+           ($ (free-name 'IFZE "IFZE") (lam () n) (lam () z) (lam (x) s)))])))
+
+  (define-match-expander nat nat-expander nat-expander)
+  (define-match-expander ze ze-expander ze-expander)
+  (define-match-expander su su-expander su-expander)
+  (define-match-expander ifze ifze-expander ifze-expander)
+
   ; we should automatically generate a pattern like
   ;    (ifze n z (x) s)
   ; for the operator IFZE
@@ -506,13 +533,18 @@
   (define num-sig
     (signature
      (NAT (Π (TYPE)))
-     (ZE (Π nat))
-     (SU (Π (_ (Π nat)) nat))
-     (IFZE (Π (n (Π nat)) (z (Π nat)) (s (Π (x (Π nat)) nat)) nat))))
+     (ZE (Π (nat)))
+     (SU (Π (_ (Π (nat))) (nat)))
+     (IFZE (Π (n (Π (nat))) (z (Π (nat))) (s (Π (x (Π (nat))) (nat))) (nat)))))
 
   (check-equal?
-   (inf-rtm num-sig (ifze (su (su ze)) ze (lam (x) ($ x))))
-   nat)
+   (inf-rtm num-sig (ifze (su (su (ze))) (ze) (x) ($ x)))
+   (nat))
+
+  ;; deep matching on terms with binding! wow!
+  (match (ifze (su (su (ze))) (ze) (x) (su ($ x)))
+    [(ifze (su (su n)) z (x) s)
+     (check-equal? s (su ($ x)))])
 
   (let ([x (fresh "hi")])
     (check-equal?
@@ -524,7 +556,7 @@
     (check-not-equal?
      (telescope (y x) (z y))
      (telescope (z x*) (z z))))
-
+  
   (let ([x (fresh "hi")])
     (check-equal?
      (match (telescope (y x) (z y))
