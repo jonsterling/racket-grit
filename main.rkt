@@ -468,10 +468,30 @@
            (s (Π ((x (Π () (nat)))) (nat))))
           (nat)))
 
+  ; An example of structural recursion over terms,
+  ; using the auto-generated patterns
+  (define (printer rtm)
+    (match rtm
+      [(nat) "nat"]
+      [(ze) "ze"]
+      [(su e) (format "su(~a)" (printer e))]
+      [(ifze n z (x) s)
+       (format
+        "ifze(~a; ~a; ~a.~a)"
+        (printer n)
+        (printer z)
+        (free-name-hint x)
+        (printer s))]
+      [($ x) (free-name-hint x)]))
+
   (check-equal?
    (inf-rtm num-sig (ifze (su (su (ze))) (ze) (x) ($ x)))
    (nat))
 
+  (check-equal?
+   (printer
+    (ifze (su (su (ze))) (ze) (x) (su ($ x))))
+   "ifze(su(su(ze)); ze; x.su(x))")
 
   (match (ifze (su (su (ze))) (ze) (x) (su ($ x)))
     [(ifze (su (su n)) z (x) s)
