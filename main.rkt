@@ -19,8 +19,7 @@
 
 
 (provide
- TYPE
- Π lam $
+ TYPE Π Λ $
  chk-rtype
  chk-tele
  chk-ntm
@@ -102,13 +101,12 @@
        (syntax/loc stx
          (make-Π (telescope (x e) ...) (in-scope (x ...) cod)))])))
 
-(struct lam (scope)
-  #:transparent ;; should it be transparent? Not sure. - jms
+(struct Λ (scope)
   #:omit-define-syntaxes
-  #:extra-constructor-name make-lam
+  #:extra-constructor-name make-Λ
   #:methods gen:custom-write
   ((define (write-proc e port mode)
-     (define sc (lam-scope e))
+     (define sc (Λ-scope e))
      (define temps (fresh-print-names (scope-valence sc)))
      (define binder
        (string-join (for/list ([x temps]) (format "~a" x)) ", "))
@@ -118,31 +116,34 @@
   #:property prop:bindings
   (binder
    (λ (e frees i)
-     (define sc (lam-scope e))
+     (define sc (Λ-scope e))
      (match-define (binder abs _) (bindings-accessor sc))
-     (make-lam (abs sc frees i)))
+     (make-Λ (abs sc frees i)))
    (λ (e i new-exprs)
-     (define sc (lam-scope e))
+     (define sc (Λ-scope e))
      (match-define (binder _ inst) (bindings-accessor sc))
-     (make-lam (inst sc i new-exprs)))))
+     (make-Λ (inst sc i new-exprs))))
 
-(define-for-syntax lam-expander
+
+  #:methods gen:equal+hash
+  ((define (equal-proc lam1 lam2 rec-equal?)
+     (and
+      (rec-equal? (Λ-scope lam1) (Λ-scope lam2))))
+   (define (hash-proc lam rec-hash)
+     (rec-hash (Λ-scope lam)))
+   (define (hash2-proc lam rec-hash2)
+     (rec-hash2 (Λ-scope lam)))))
+
+(define-match-expander Λ
   (λ (stx)
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
-       (syntax/loc stx (LAM (in-scope (x ...) body)))])))
-
-(define-match-expander lam
+       (syntax/loc stx (? Λ? (app Λ-scope (in-scope (x ...) body))))]))
   (λ (stx)
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
-       (syntax/loc stx (? lam? (app lam-scope (in-scope (x ...) body))))]))
-  (λ (stx)
-    (syntax-parse stx
-      [(_ (x:id ...) body:expr)
-       (syntax/loc stx (make-lam (in-scope (x ...) body)))])))
+       (syntax/loc stx (make-Λ (in-scope (x ...) body)))])))
 
-;; the TYPE type
 (struct TYPE ()
   #:transparent
   #:methods gen:custom-write
@@ -185,7 +186,7 @@
      (match (inst-var var i new-exprs)
        [(bound-name ix) (make-$ (bound-name ix) new-spine)]
        [(free-name sym hint) (make-$ (free-name sym hint) new-spine)]
-       [(? lam? (app lam-scope sc))
+       [(? Λ? (app Λ-scope sc))
         (define body (scope-body sc))
         (match-let ([(binder _ inst-body) (bindings-accessor body)])
           (inst-body body i new-spine))]))))
@@ -276,7 +277,7 @@
                     (for/list ([name/inner args])
                       (syntax-case name/inner ()
                         [(x (y ...))
-                         #'(lam (y ...) x)]))])
+                         #'(Λ (y ...) x)]))])
        #'(begin (define-for-syntax (help-expander stx)
                   (syntax-parse stx
                     [(_ lhs ...)
@@ -311,7 +312,7 @@
   (listof scope?))
 
 (define spine?
-  (listof lam?))
+  (listof Λ?))
 
 (define/contract (ctx-set ctx x ty)
   (-> ctx? free-name? Π? ctx?)
@@ -399,11 +400,11 @@
 
 (define/contract (chk-ntm ctx ntm ty)
   (->i ((ctx ctx?)
-        (ntm lam?)
+        (ntm Λ?)
         (ty (ctx ntm) (wf-type? ctx)))
        (result any/c))
   (match* (ntm ty)
-    [((? lam? (app lam-scope sc)) (? Π? (and (app Π-domain tele) (app Π-codomain cod))))
+    [((? Λ? (app Λ-scope sc)) (? Π? (and (app Π-domain tele) (app Π-codomain cod))))
      (match (chk-tele ctx tele)
        [(cons ctx xs)
         (chk-rtm ctx (instantiate sc xs) (instantiate cod xs))])]))
@@ -412,7 +413,7 @@
 (define/contract (wf-ntm? ctx ty)
   (->i ((ctx ctx?)
         (ty (ctx) (wf-type? ctx)))
-       (result (-> lam? boolean?)))
+       (result (-> Λ? boolean?)))
   (λ (ntm)
     (with-handlers ([exn:fail? (λ (v) #f)])
       (chk-ntm ctx ntm ty)
@@ -453,29 +454,27 @@
      (Π ((b x) (c ($ b))) ($ c))))
 
   (check-equal?
-   (lam (n m) n)
-   (lam (a b) a))
+   (Λ (n m) n)
+   (Λ (a b) a))
 
-  ; an example signature. we should add macros to make it more tolerable
-  ; to write and read such signatures.
   (define-signature num-sig
-    (NAT () (TYPE))
-    (ZE () (NAT))
-    (SU ((x (Π () (NAT))))
-        (NAT))
-    (IFZE ((n (Π () (NAT)))
-           (z (Π () (NAT)))
-           (s (Π ((x (Π () (NAT)))) (NAT))))
-          (NAT)))
+    (nat () (TYPE))
+    (ze () (nat))
+    (su ((x (Π () (nat))))
+        (nat))
+    (ifze ((n (Π () (nat)))
+           (z (Π () (nat)))
+           (s (Π ((x (Π () (nat)))) (nat))))
+          (nat)))
 
   (check-equal?
-   (inf-rtm num-sig (IFZE (SU (SU (ZE))) (ZE) (x) ($ x)))
-   (NAT))
+   (inf-rtm num-sig (ifze (su (su (ze))) (ze) (x) ($ x)))
+   (nat))
 
-  ;; deep matching on terms with binding! wow!
-  (match (IFZE (SU (SU (ZE))) (ZE) (x) (SU ($ x)))
-    [(IFZE (SU (SU n)) z (x) s)
-     (check-equal? s (SU ($ x)))])
+
+  (match (ifze (su (su (ze))) (ze) (x) (su ($ x)))
+    [(ifze (su (su n)) z (x) s)
+     (check-equal? s (su ($ x)))])
 
   (let ([x (fresh "hi")])
     (check-equal?
