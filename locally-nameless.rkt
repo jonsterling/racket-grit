@@ -40,7 +40,7 @@
  write-proc/telescope
  used-names
  fresh
- inst abs auto-inst)
+ instantiate abstract auto-instantiate)
 
 (module+ test
   (require rackunit))
@@ -209,7 +209,7 @@
 
 
 
-(define/contract (inst sc vals)
+(define/contract (instantiate sc vals)
   (->i ((sc scope?)
         (vals list?))
        #:pre (sc vals) (= (scope-valence sc) (length vals))
@@ -219,7 +219,7 @@
     (inst open-expr 0 vals)))
 
 
-(define/contract (abs frees closed-expr)
+(define/contract (abstract frees closed-expr)
   (->i ((frees (and/c (listof free-name?) distinct?))
         (closed-expr bindings?))
        (result
@@ -230,7 +230,7 @@
       (abs closed-expr frees 0)))
   (scope (length frees) open-expr))
 
-(define (auto-inst sc)
+(define (auto-instantiate sc)
   (define frees (build-list (scope-valence sc) (λ (i) (fresh))))
-  (cons frees (inst sc frees)))
+  (cons frees (instantiate sc frees)))
 
