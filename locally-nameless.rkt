@@ -40,7 +40,8 @@
  write-proc/telescope
  used-names
  fresh
- instantiate abstract auto-instantiate)
+ instantiate abstract auto-instantiate
+ in-scope)
 
 (module+ test
   (require rackunit))
@@ -234,3 +235,21 @@
   (define frees (build-list (scope-valence sc) (λ (i) (fresh))))
   (cons frees (instantiate sc frees)))
 
+
+(define-match-expander in-scope
+  ; destructor
+  (λ (stx)
+    (syntax-parse stx
+      [(_ (x:id ...) body:expr)
+       (with-syntax ([var-count (length (syntax->list #'(x ...)))])
+         #'(? (λ (sc) (and (scope? sc) (= (scope-valence sc) var-count)))
+              (app auto-instantiate (cons (list x ...) body))))]))
+
+  ; constructor
+  (λ (stx)
+    (syntax-parse stx
+      [(_ (x:id ...) body:expr)
+       (with-syntax ([(x-str ...) (map symbol->string (syntax->datum #'(x ...)))])
+         (syntax/loc stx
+           (let ([x (fresh x-str)] ...)
+             (abstract (list x ...) body))))])))
