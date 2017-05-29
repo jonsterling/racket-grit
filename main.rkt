@@ -155,6 +155,11 @@
 
 (define-match-expander signature sig-expander sig-expander)
 
+; TODO: have this generate match expanders as it goes!
+(define-syntax-rule (define-signature sig-name (x ty) ...)
+  (define sig-name
+    (signature (x ty) ...)))
+
 (define-for-syntax tele-expander
   (λ (stx)
     (define (make-tele bound todo)
@@ -412,17 +417,16 @@
 
   ; an example signature. we should add macros to make it more tolerable
   ; to write and read such signatures.
-  (define num-sig
-    (signature
-     (NAT (Π () (TYPE)))
-     (ZE (Π () (nat)))
-     (SU (Π ((_ (Π () (nat)))) (nat)))
-     (IFZE
-      (Π
-       ((n (Π () (nat)))
-        (z (Π () (nat)))
-        (s (Π ((x (Π () (nat)))) (nat))))
-       (nat)))))
+  (define-signature num-sig
+    (NAT (Π () (TYPE)))
+    (ZE (Π () (nat)))
+    (SU (Π ((_ (Π () (nat)))) (nat)))
+    (IFZE
+     (Π
+      ((n (Π () (nat)))
+       (z (Π () (nat)))
+       (s (Π ((x (Π () (nat)))) (nat))))
+      (nat))))
 
   (check-equal?
    (inf-rtm num-sig (ifze (su (su (ze))) (ze) (x) ($ x)))
