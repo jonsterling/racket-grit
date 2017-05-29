@@ -318,7 +318,6 @@
         (ntm LAM?)
         (ty (ctx ntm) (wf-type? ctx)))
        (result any/c))
-  ;(-> ctx? LAM? PI? any/c)
   (match* (ntm ty)
     [((LAM sc) (PI tele cod))
      (match (chk-tele ctx tele)
