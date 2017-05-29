@@ -127,8 +127,7 @@
 
   #:methods gen:equal+hash
   ((define (equal-proc lam1 lam2 rec-equal?)
-     (and
-      (rec-equal? (Λ-scope lam1) (Λ-scope lam2))))
+     (rec-equal? (Λ-scope lam1) (Λ-scope lam2)))
    (define (hash-proc lam rec-hash)
      (rec-hash (Λ-scope lam)))
    (define (hash2-proc lam rec-hash2)
