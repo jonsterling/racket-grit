@@ -253,11 +253,13 @@
   (define-syntax-class Pi
     #:literals (Π)
     ;; TODO: Add another pattern here to add implicit Pi when not used directly?
-    (pattern (Π () result)
-             #:attr (arg 1) '()
-             #:attr nullary? #f)
-    (pattern (Π ((arg:id type) ...) result)
-             #:attr nullary? #t)))
+    (pattern
+     (Π () result)
+     #:attr (arg 1) '()
+     #:attr nullary? #f)
+    (pattern
+     (Π ((arg:id type) ...) result)
+     #:attr nullary? #t)))
 
 
 
