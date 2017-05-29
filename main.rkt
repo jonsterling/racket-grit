@@ -155,10 +155,17 @@
 
 (define-match-expander signature sig-expander sig-expander)
 
-; TODO: have this generate match expanders as it goes!
-(define-syntax-rule (define-signature sig-name (x ty) ...)
-  (define sig-name
-    (signature (x ty) ...)))
+
+(define-syntax (one-pattern-lhs stx)
+  (syntax-parse stx
+    #:literals (Π)
+    [(_ (x:id (Π () e)))
+     (syntax/loc stx
+       (x))]
+    [(_ (x:id (Π (y1 y ...) e)) elem ...)
+     (syntax/loc stx
+       ((y1 y ...) x))]
+    ))
 
 (define-for-syntax tele-expander
   (λ (stx)
@@ -204,6 +211,55 @@
 
 
 ; a signature/context is an association list
+
+(begin-for-syntax
+  (define-syntax-class signature-elem
+    (pattern (name:id ((arg:id type:Pi) ...) result)))
+  (define-syntax-class Pi
+    #:literals (Π)
+    ;; TODO: Add another pattern here to add implicit Pi when not used directly?
+    (pattern (Π () result)
+             #:attr (arg 1) '()
+             #:attr nullary? #f)
+    (pattern (Π ((arg:id type) ...) result)
+             #:attr nullary? #t)))
+
+
+
+(define-syntax (define-signature-helper stx)
+  (syntax-parse stx
+    [(_ name ((arg type:Pi) ...) )
+     (define args (syntax->list #'((arg (type.arg ...)) ...)))
+     (with-syntax ([(lhs ...)
+                    (apply append
+                           (for/list ([name/inner args])
+                             (syntax-case name/inner ()
+                               [(x ())
+                                (list #'x)]
+                               [(x (y ...))
+                                (list #'(y ...) #'x)])))]
+                   [(rhs ...)
+                    (for/list ([name/inner args])
+                      (syntax-case name/inner ()
+                        [(x (y ...))
+                         #'(lam (y ...) x)]))])
+       #'(begin (define-for-syntax (help-expander stx)
+                  (syntax-parse stx
+                    [(_ lhs ...)
+                     (with-syntax ([name-str (symbol->string (syntax->datum #'name))])
+                       (syntax/loc stx
+                         ($ (free-name 'name name-str)
+                            rhs
+                            ...)))]))
+                (define-match-expander name help-expander help-expander)))]))
+
+(define-syntax (define-signature stx)
+  (syntax-parse stx
+    [(_ sig-name c:signature-elem ...)
+     #'(begin
+         (define sig-name
+           (signature (c.name (Π ((c.arg c.type) ...) c.result)) ...))
+         (define-signature-helper c.name ((c.arg c.type) ...)) ...)]))
 
 (define (snoc xs x)
   (append xs (list x)))
@@ -370,6 +426,7 @@
       #t)))
 
 
+
 (module+ test
   (let ([x (fresh "hello")])
     (check-equal?
@@ -380,62 +437,26 @@
    (lam (n m) n)
    (lam (a b) a))
 
-  ; TODO: pattern macros should get automatically generated!
-  (define-for-syntax nat-expander
-    (λ (stx)
-      (syntax-parse stx
-        [(_)
-         (syntax/loc stx ($ (free-name 'NAT "NAT")))])))
-
-  (define-for-syntax ze-expander
-    (λ (stx)
-      (syntax-parse stx
-        [(_)
-         (syntax/loc stx ($ (free-name 'ZE "ZE")))])))
-
-  (define-for-syntax su-expander
-    (λ (stx)
-      (syntax-parse stx
-        [(_ e:expr)
-         (syntax/loc stx ($ (free-name 'SU "SU") (lam () e)))])))
-
-  (define-for-syntax ifze-expander
-    (λ (stx)
-      (syntax-parse stx
-        [(_ n:expr z:expr (x:id) s:expr)
-         (syntax/loc stx
-           ($ (free-name 'IFZE "IFZE") (lam () n) (lam () z) (lam (x) s)))])))
-
-  (define-match-expander nat nat-expander nat-expander)
-  (define-match-expander ze ze-expander ze-expander)
-  (define-match-expander su su-expander su-expander)
-  (define-match-expander ifze ifze-expander ifze-expander)
-
-  ; we should automatically generate a pattern like
-  ;    (ifze n z (x) s)
-  ; for the operator IFZE
-
   ; an example signature. we should add macros to make it more tolerable
   ; to write and read such signatures.
   (define-signature num-sig
-    (NAT (Π () (TYPE)))
-    (ZE (Π () (nat)))
-    (SU (Π ((_ (Π () (nat)))) (nat)))
-    (IFZE
-     (Π
-      ((n (Π () (nat)))
-       (z (Π () (nat)))
-       (s (Π ((x (Π () (nat)))) (nat))))
-      (nat))))
+    (NAT () (TYPE))
+    (ZE () (NAT))
+    (SU ((x (Π () (NAT))))
+        (NAT))
+    (IFZE ((n (Π () (NAT)))
+           (z (Π () (NAT)))
+           (s (Π ((x (Π () (NAT)))) (NAT))))
+          (NAT)))
 
   (check-equal?
-   (inf-rtm num-sig (ifze (su (su (ze))) (ze) (x) ($ x)))
-   (nat))
+   (inf-rtm num-sig (IFZE (SU (SU (ZE))) (ZE) (x) ($ x)))
+   (NAT))
 
   ;; deep matching on terms with binding! wow!
-  (match (ifze (su (su (ze))) (ze) (x) (su ($ x)))
-    [(ifze (su (su n)) z (x) s)
-     (check-equal? s (su ($ x)))])
+  (match (IFZE (SU (SU (ZE))) (ZE) (x) (SU ($ x)))
+    [(IFZE (SU (SU n)) z (x) s)
+     (check-equal? s (SU ($ x)))])
 
   (let ([x (fresh "hi")])
     (check-equal?
