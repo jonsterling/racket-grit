@@ -6,4 +6,4 @@
 (define scribblings '(("scribblings/racket-logical-framework.scrbl" ())))
 (define pkg-desc "Description Here")
 (define version "0.0")
-(define pkg-authors '(jon))
+(define pkg-authors '("David Christiansen" "Jon Sterling"))

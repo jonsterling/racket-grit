@@ -40,12 +40,12 @@
 
   #:property prop:bindings
   (binder
-   (lambda (pi frees i)
+   (λ (pi frees i)
      (match-define (pi-type tl sc) pi)
      (match-define (binder abs-tl _) bindings/telescope)
      (match-define (binder abs-sc _) (bindings-accessor sc))
      (pi-type (abs-tl tl frees i) (abs-sc sc frees i)))
-   (lambda (pi i new-exprs)
+   (λ (pi i new-exprs)
      (match-define (pi-type tl sc) pi)
      (match-define (binder _ inst-tl) bindings/telescope)
      (match-define (binder _ inst-sc) (bindings-accessor sc))
@@ -78,11 +78,11 @@
 
   #:property prop:bindings
   (binder
-   (lambda (lam frees i)
+   (λ (lam frees i)
      (match-define (lambda-op sc) lam)
      (match-define (binder abs _) (bindings-accessor sc))
      (lambda-op (abs sc frees i)))
-   (lambda (lam i new-exprs)
+   (λ (lam i new-exprs)
      (match-define (lambda-op sc) lam)
      (match-define (binder _ inst) (bindings-accessor sc))
      (lambda-op (inst sc i new-exprs)))))
@@ -96,8 +96,8 @@
      (fprintf port "TYPE")))
   #:property prop:bindings
   (binder
-   (lambda (ty frees i) ty)
-   (lambda (ty i new-exprs) ty)))
+   (λ (ty frees i) ty)
+   (λ (ty i new-exprs) ty)))
 
 (struct application (var spine)
   #:transparent
@@ -109,14 +109,14 @@
 
   #:property prop:bindings
   (binder
-   (lambda (ap frees i)
+   (λ (ap frees i)
      (match-define (application var spine) ap)
      (match-define (binder abs-var _) (bindings-accessor var))
      (define (go arg)
        (match-define (binder abs _) (bindings-accessor arg))
        (abs arg frees i))
      (application (abs-var var frees i) (map go spine)))
-   (lambda (ap i new-exprs)
+   (λ (ap i new-exprs)
      (match-define (application var spine) ap)
      (match-define (binder _ inst-var) (bindings-accessor var))
      (define (go-arg arg)
@@ -133,15 +133,15 @@
 
 (define-match-expander in-scope
   ; destructor
-  (lambda (stx)
+  (λ (stx)
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
        (with-syntax ([var-count (length (syntax->list #'(x ...)))])
-         #'(? (lambda (sc) (and (scope? sc) (= (scope-valence sc) var-count)))
+         #'(? (λ (sc) (and (scope? sc) (= (scope-valence sc) var-count)))
               (app auto-inst (cons (list x ...) body))))]))
 
   ; constructor
-  (lambda (stx)
+  (λ (stx)
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
        (with-syntax ([(x-str ...) (map symbol->string (syntax->datum #'(x ...)))])
@@ -151,7 +151,7 @@
 
 
 (define-for-syntax sig-expander
-  (lambda (stx)
+  (λ (stx)
     (syntax-parse stx
       [(_ (x:id ty:expr) ...)
        (with-syntax ([(x-var ...) (syntax->datum #'(x ...))])
@@ -161,7 +161,7 @@
 (define-match-expander signature sig-expander sig-expander)
 
 (define-for-syntax tele-expander
-  (lambda (stx)
+  (λ (stx)
     (define (make-tele bound todo)
       (syntax-parse todo
         [((x:id e:expr) (y:id e2:expr) ...)
@@ -179,7 +179,7 @@
   tele-expander tele-expander)
 
 (define-for-syntax Π-expander
-  (lambda (stx)
+  (λ (stx)
     (syntax-parse stx
       [(_ (x:id e:expr) ... cod:expr)
        (syntax/loc stx (pi-type (telescope (x e) ...) (in-scope (x ...) cod)))])))
@@ -187,7 +187,7 @@
 (define-match-expander Π Π-expander Π-expander)
 
 (define-for-syntax lam-expander
-  (lambda (stx)
+  (λ (stx)
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
        (syntax/loc stx (lambda-op (in-scope (x ...) body)))])))
@@ -195,7 +195,7 @@
 (define-match-expander lam lam-expander lam-expander)
 
 (define-for-syntax $-expander
-  (lambda (stx)
+  (λ (stx)
     (syntax-parse stx
       [(_ x:expr e:expr ...)
        (syntax/loc stx (application x (list e ...)))])))
@@ -316,25 +316,25 @@
 
   ; TODO: pattern macros should get automatically generated!
   (define-for-syntax nat-expander
-    (lambda (stx)
+    (λ (stx)
       (syntax-parse stx
         [(_)
          (syntax/loc stx ($ (free-name 'NAT "NAT")))])))
 
   (define-for-syntax ze-expander
-    (lambda (stx)
+    (λ (stx)
       (syntax-parse stx
         [(_)
          (syntax/loc stx ($ (free-name 'ZE "ZE")))])))
 
   (define-for-syntax su-expander
-    (lambda (stx)
+    (λ (stx)
       (syntax-parse stx
         [(_ e:expr)
          (syntax/loc stx ($ (free-name 'SU "SU") (lam () e)))])))
 
   (define-for-syntax ifze-expander
-    (lambda (stx)
+    (λ (stx)
       (syntax-parse stx
         [(_ n:expr z:expr (x:id) s:expr)
          (syntax/loc stx

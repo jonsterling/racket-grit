@@ -16,14 +16,25 @@
  racket/string)
 
 (provide
- (struct-out binder)
  prop:bindings
  bindings-accessor
  fresh-print-names
 
- (struct-out scope)
- (struct-out free-name)
- (struct-out bound-name)
+ (contract-out
+  (struct binder
+    ((abs (-> any/c (listof free-name?) integer? any/c))
+     (inst (-> any/c integer? (listof bindings?) any/c))))
+
+  (struct scope
+    ((valence integer?)
+     (body bindings?)))
+
+  (struct bound-name
+    ((index integer?)))
+
+  (struct free-name
+    ((sym symbol?)
+     (hint string?))))
 
  bindings/telescope
  write-proc/telescope
@@ -62,7 +73,7 @@
 (define/contract (fresh-print-names n)
   (->i ((n exact-nonnegative-integer?))
        (result (n) (and/c (listof string?)
-                          (lambda (r) (= (length r) n)))))
+                          (λ (r) (= (length r) n)))))
   (if (zero? n)
       '()
       (let ((x (next-name "a" (used-names))))
@@ -75,7 +86,7 @@
 (define-values (prop:bindings has-prop:bindings? bindings-accessor)
   (make-struct-type-property
    'bindings
-   (lambda (v _)
+   (λ (v _)
      (and (binder? v) v))))
 
 (define (bindings? v)
@@ -86,8 +97,8 @@
   #:transparent
   #:property prop:bindings
   (binder
-   (lambda (expr frees i) expr)
-   (lambda (expr i new-exprs)
+   (λ (expr frees i) expr)
+   (λ (expr i new-exprs)
      (define j (- (bound-name-index expr) i))
      (if (<= 0 j (add1 (length new-exprs)))
          (list-ref new-exprs j)
@@ -110,10 +121,10 @@
 (struct free-name (sym hint)
   #:property prop:bindings
   (binder
-   (lambda (expr frees i)
+   (λ (expr frees i)
      (let ((j (index-of frees expr (lambda (x y) (eqv? (free-name-sym x) (free-name-sym y))))))
        (if j (bound-name (+ i j)) expr)))
-   (lambda (expr i new-exprs)
+   (λ (expr i new-exprs)
      expr))
   #:methods gen:custom-write
   ((define (write-proc x port mode)
@@ -151,12 +162,12 @@
 
   #:property prop:bindings
   (binder
-   (lambda (sc frees i)
+   (λ (sc frees i)
      (define valence (scope-valence sc))
      (define body (scope-body sc))
      (match-define (binder abs _) (bindings-accessor body))
      (scope valence (abs body frees (+ i valence))))
-   (lambda (sc i new-exprs)
+   (λ (sc i new-exprs)
      (define valence (scope-valence sc))
      (define body (scope-body sc))
      (match-define (binder _ inst) (bindings-accessor body))
@@ -185,12 +196,12 @@
 
 (define bindings/telescope
   (binder
-   (lambda (cells frees i)
+   (λ (cells frees i)
      (define (go cell)
        (match-define (binder abs _) (bindings-accessor cell))
        (abs cell frees i))
      (map go cells))
-   (lambda (cells i new-exprs)
+   (λ (cells i new-exprs)
      (define (go cell)
        (match-define (binder _ inst) (bindings-accessor cell))
        (inst cell i new-exprs))
@@ -213,13 +224,13 @@
         (closed-expr bindings?))
        (result
         (frees)
-        (and/c scope? (lambda (r) (= (scope-valence r) (length frees))))))
+        (and/c scope? (λ (r) (= (scope-valence r) (length frees))))))
   (define open-expr
     (match-let ([(binder abs _) (bindings-accessor closed-expr)])
       (abs closed-expr frees 0)))
   (scope (length frees) open-expr))
 
 (define (auto-inst sc)
-  (define frees (build-list (scope-valence sc) (lambda (i) (fresh))))
+  (define frees (build-list (scope-valence sc) (λ (i) (fresh))))
   (cons frees (inst sc frees)))
 
