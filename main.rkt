@@ -176,7 +176,7 @@
 (define-for-syntax Π-expander
   (λ (stx)
     (syntax-parse stx
-      [(_ (x:id e:expr) ... cod:expr)
+      [(_ ((x:id e:expr) ...) cod:expr)
        (syntax/loc stx (PI (telescope (x e) ...) (in-scope (x ...) cod)))])))
 
 (define-match-expander Π Π-expander Π-expander)
@@ -368,8 +368,8 @@
 (module+ test
   (let ([x (fresh "hello")])
     (check-equal?
-     (Π (a x) (b ($ a)) ($ b))
-     (Π (b x) (c ($ b)) ($ c))))
+     (Π ((a x) (b ($ a))) ($ b))
+     (Π ((b x) (c ($ b))) ($ c))))
 
   (check-equal?
    (lam (n m) n)
@@ -414,10 +414,15 @@
   ; to write and read such signatures.
   (define num-sig
     (signature
-     (NAT (Π (TYPE)))
-     (ZE (Π (nat)))
-     (SU (Π (_ (Π (nat))) (nat)))
-     (IFZE (Π (n (Π (nat))) (z (Π (nat))) (s (Π (x (Π (nat))) (nat))) (nat)))))
+     (NAT (Π () (TYPE)))
+     (ZE (Π () (nat)))
+     (SU (Π ((_ (Π () (nat)))) (nat)))
+     (IFZE
+      (Π
+       ((n (Π () (nat)))
+        (z (Π () (nat)))
+        (s (Π ((x (Π () (nat)))) (nat))))
+       (nat)))))
 
   (check-equal?
    (inf-rtm num-sig (ifze (su (su (ze))) (ze) (x) ($ x)))
