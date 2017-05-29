@@ -305,8 +305,7 @@
 (define rtype?
   (or/c TYPE? $?))
 
-(define type?
-  (or/c Π? rtype?))
+(define type? Π?)
 
 (define tele?
   (listof scope?))
