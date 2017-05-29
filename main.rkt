@@ -21,12 +21,18 @@
 (provide
  PI LAM APP TYPE
  Π lam
- chk-type
  chk-rtype
  chk-tele
  chk-ntm
  chk-rtm
- chk-spine)
+ chk-spine
+ inf-rtm
+ wf-rtype?
+ wf-type?
+ wf-tele?
+ wf-spine?
+ wf-ntm?
+ wf-rtm?)
 
 (module+ test
   (require rackunit))
@@ -238,47 +244,103 @@
   (aux ctx '() tele))
 
 (define/contract
+  (wf-tele? ctx)
+  (-> ctx? (-> tele? boolean?))
+  (λ (tele)
+    (with-handlers ([exn:fail? (λ (v) #f)])
+      (chk-tele ctx tele)
+      #t)))
+
+
+(define/contract
+  (wf-rtype? ctx)
+  (-> ctx? (-> rtype? boolean?))
+  (λ (rty)
+    (with-handlers ([exn:fail? (λ (v) #f)])
+      (chk-rtype ctx rty)
+      #t)))
+
+(define/contract
   (chk-type ctx ty)
   (-> ctx? type? any/c)
   (match ty
     [(PI tele cod)
      (match (chk-tele ctx tele)
        [(cons ctx xs)
-        (chk-rtype ctx (instantiate cod xs))])]
-    [rty (chk-rtype ctx rty)]))
+        (chk-rtype ctx (instantiate cod xs))])]))
+
+
+(define/contract
+  (wf-type? ctx)
+  (-> ctx? (-> type? boolean?))
+  (λ (ty)
+    (with-handlers ([exn:fail? (λ (v) #f)])
+      (chk-type ctx ty)
+      #t)))
 
 (define/contract
   (chk-rtype ctx rty)
   (-> ctx? rtype? any/c)
   (match rty
-    [(TYPE) 'ok]
+    [(TYPE) #t]
     [APP?
      (match (inf-rtm ctx rty)
-       [(TYPE) 'ok])]))
+       [(TYPE) '#t])]))
 
 (define/contract
   (chk-spine ctx tele spine)
-  (-> ctx? tele? spine? any/c)
+  (->i ((ctx ctx?)
+        (tele (ctx) (wf-tele? ctx))
+        (spine spine?))
+       (result any/c))
   (define (aux ctx env tele spine)
     (match* (tele spine)
-      [('() '()) 'ok]
+      [('() '()) #t]
       [((cons sc tele) (cons ntm spine))
        (chk-ntm ctx ntm (instantiate sc env))
        (aux ctx (snoc env ntm) tele spine)]))
   (aux ctx '() tele spine))
 
+
+(define/contract
+  (wf-spine? ctx tele)
+  (->i ((ctx ctx?)
+        (tele (ctx) (wf-tele? ctx)))
+       (result (-> spine? boolean?)))
+  (λ (spine)
+    (with-handlers ([exn:fail? (λ (v) #f)])
+      (chk-spine ctx spine tele)
+      #t)))
+
 (define/contract
   (chk-ntm ctx ntm ty)
-  (-> ctx? LAM? PI? any/c)
+  (->i ((ctx ctx?)
+        (ntm LAM?)
+        (ty (ctx ntm) (wf-type? ctx)))
+       (result any/c))
+  ;(-> ctx? LAM? PI? any/c)
   (match* (ntm ty)
     [((LAM sc) (PI tele cod))
      (match (chk-tele ctx tele)
        [(cons ctx xs)
         (chk-rtm ctx (instantiate sc xs) (instantiate cod xs))])]))
 
+
+(define/contract
+  (wf-ntm? ctx ty)
+  (->i ((ctx ctx?)
+        (ty (ctx) (wf-type? ctx)))
+       (result (-> LAM? boolean?)))
+  (λ (ntm)
+    (with-handlers ([exn:fail? (λ (v) #f)])
+      (chk-ntm ctx ntm ty)
+      #t)))
+
 (define/contract
   (inf-rtm ctx rtm)
-  (-> ctx? APP? rtype?)
+  (->i ((ctx ctx?)
+        (rtm APP?))
+       (result (ctx rtm) (wf-rtype? ctx)))
   (match rtm
     [(APP x spine)
      (match (ctx-ref ctx x)
@@ -290,8 +352,19 @@
   (chk-rtm ctx rtm rty)
   (-> ctx? APP? rtype? any/c)
   (if (equal? (inf-rtm ctx rtm) rty)
-      'ok
+      #t
       (error "Type mismatch")))
+
+(define/contract
+  (wf-rtm? ctx rty)
+  (->i ((ctx ctx?)
+        (rty (ctx) (wf-rtype? ctx)))
+       (result (-> APP? boolean?)))
+  (λ (rtm)
+    (with-handlers ([exn:fail? (λ (v) #f)])
+      (chk-rtm ctx rtm rty)
+      #t)))
+
 
 (module+ test
   (let ([x (fresh "hello")])
