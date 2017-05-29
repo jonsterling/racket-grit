@@ -19,8 +19,8 @@
 
 
 (provide
- PI LAM APP TYPE
- Π lam
+ TYPE
+ Π lam $
  chk-rtype
  chk-tele
  chk-ntm
@@ -38,10 +38,13 @@
   (require rackunit))
 
 
-(struct PI (domain codomain)
+(struct Π (domain codomain)
+  #:omit-define-syntaxes
+  #:extra-constructor-name make-Π
   #:methods gen:custom-write
   ((define (write-proc pi port mode)
-     (match-define (PI tl sc) pi)
+     (define tl (Π-domain pi))
+     (define sc (Π-codomain pi))
      (match-define (scope vl body) sc)
      (define temps (fresh-print-names vl))
      (fprintf port "{")
@@ -53,35 +56,59 @@
   #:property prop:bindings
   (binder
    (λ (pi frees i)
-     (match-define (PI tl sc) pi)
+     (define tl (Π-domain pi))
+     (define sc (Π-codomain pi))
      (match-define (binder abs-tl _) bindings/telescope)
      (match-define (binder abs-sc _) (bindings-accessor sc))
-     (PI (abs-tl tl frees i) (abs-sc sc frees i)))
+     (make-Π (abs-tl tl frees i) (abs-sc sc frees i)))
    (λ (pi i new-exprs)
-     (match-define (PI tl sc) pi)
+     (define tl (Π-domain pi))
+     (define sc (Π-codomain pi))
      (match-define (binder _ inst-tl) bindings/telescope)
      (match-define (binder _ inst-sc) (bindings-accessor sc))
-     (PI (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
+     (make-Π (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
 
   #:methods gen:equal+hash
   ((define (equal-proc pi1 pi2 rec-equal?)
      (and
-      (rec-equal? (PI-domain pi1) (PI-domain pi2))
-      (rec-equal? (PI-codomain pi1) (PI-codomain pi2))))
+      (rec-equal? (Π-domain pi1) (Π-domain pi2))
+      (rec-equal? (Π-codomain pi1) (Π-codomain pi2))))
    (define (hash-proc pi rec-hash)
      (fxxor
-      (rec-hash (PI-domain pi))
-      (rec-hash (PI-codomain pi))))
+      (rec-hash (Π-domain pi))
+      (rec-hash (Π-codomain pi))))
    (define (hash2-proc pi rec-hash2)
      (fxxor
-      (rec-hash2 (PI-domain pi))
-      (rec-hash2 (PI-codomain pi))))))
+      (rec-hash2 (Π-domain pi))
+      (rec-hash2 (Π-codomain pi))))))
 
-(struct LAM (scope)
+
+(define-for-syntax Π-expander
+  (λ (stx)
+    (syntax-parse stx
+      [(_ ((x:id e:expr) ...) cod:expr)
+       (syntax/loc stx (PI (telescope (x e) ...) (in-scope (x ...) cod)))])))
+
+(define-match-expander Π
+  (λ (stx)
+    (syntax-parse stx
+      [(_ ((x:id e:expr) ...) cod:expr)
+       (syntax/loc stx
+         (? Π? (and (app Π-domain (telescope (x e) ...))
+                    (app Π-codomain (in-scope (x ...) cod)))))]))
+  (λ (stx)
+    (syntax-parse stx
+      [(_ ((x:id e:expr) ...) cod:expr)
+       (syntax/loc stx
+         (make-Π (telescope (x e) ...) (in-scope (x ...) cod)))])))
+
+(struct lam (scope)
   #:transparent ;; should it be transparent? Not sure. - jms
+  #:omit-define-syntaxes
+  #:extra-constructor-name make-lam
   #:methods gen:custom-write
-  ((define (write-proc lam port mode)
-     (match-define (LAM sc) lam)
+  ((define (write-proc e port mode)
+     (define sc (lam-scope e))
      (define temps (fresh-print-names (scope-valence sc)))
      (define binder
        (string-join (for/list ([x temps]) (format "~a" x)) ", "))
@@ -90,15 +117,30 @@
 
   #:property prop:bindings
   (binder
-   (λ (lam frees i)
-     (match-define (LAM sc) lam)
+   (λ (e frees i)
+     (define sc (lam-scope e))
      (match-define (binder abs _) (bindings-accessor sc))
-     (LAM (abs sc frees i)))
-   (λ (lam i new-exprs)
-     (match-define (LAM sc) lam)
+     (make-lam (abs sc frees i)))
+   (λ (e i new-exprs)
+     (define sc (lam-scope e))
      (match-define (binder _ inst) (bindings-accessor sc))
-     (LAM (inst sc i new-exprs)))))
+     (make-lam (inst sc i new-exprs)))))
 
+(define-for-syntax lam-expander
+  (λ (stx)
+    (syntax-parse stx
+      [(_ (x:id ...) body:expr)
+       (syntax/loc stx (LAM (in-scope (x ...) body)))])))
+
+(define-match-expander lam
+  (λ (stx)
+    (syntax-parse stx
+      [(_ (x:id ...) body:expr)
+       (syntax/loc stx (? lam? (app lam-scope (in-scope (x ...) body))))]))
+  (λ (stx)
+    (syntax-parse stx
+      [(_ (x:id ...) body:expr)
+       (syntax/loc stx (make-lam (in-scope (x ...) body)))])))
 
 ;; the TYPE type
 (struct TYPE ()
@@ -111,39 +153,56 @@
    (λ (ty frees i) ty)
    (λ (ty i new-exprs) ty)))
 
-(struct APP (var spine)
+(struct $ (var spine)
+  #:omit-define-syntaxes
+  #:extra-constructor-name make-$
   #:transparent
   #:methods gen:custom-write
   ((define (write-proc ap port mode)
-     (match-define (APP x sp) ap)
+     (define x ($-var ap))
+     (define sp ($-spine ap))
      (define spine (string-join (for/list ([x sp]) (format "~a" x))))
      (fprintf port "~a[~a]" x spine)))
 
   #:property prop:bindings
   (binder
    (λ (ap frees i)
-     (match-define (APP var spine) ap)
+     (define var ($-var ap))
+     (define spine ($-spine ap))
      (match-define (binder abs-var _) (bindings-accessor var))
      (define (go arg)
        (match-define (binder abs _) (bindings-accessor arg))
        (abs arg frees i))
-     (APP (abs-var var frees i) (map go spine)))
+     (make-$ (abs-var var frees i) (map go spine)))
    (λ (ap i new-exprs)
-     (match-define (APP var spine) ap)
+     (define var ($-var ap))
+     (define spine ($-spine ap))
      (match-define (binder _ inst-var) (bindings-accessor var))
      (define (go-arg arg)
        (match-define (binder _ inst-arg) (bindings-accessor arg))
        (inst-arg arg i new-exprs))
      (define new-spine (map go-arg spine))
      (match (inst-var var i new-exprs)
-       [(bound-name ix) (APP (bound-name ix) new-spine)]
-       [(free-name sym hint) (APP (free-name sym hint) new-spine)]
-       [(LAM sc)
+       [(bound-name ix) (make-$ (bound-name ix) new-spine)]
+       [(free-name sym hint) (make-$ (free-name sym hint) new-spine)]
+       [(? lam? (app lam-scope sc))
         (define body (scope-body sc))
         (match-let ([(binder _ inst-body) (bindings-accessor body)])
           (inst-body body i new-spine))]))))
 
-
+(define-match-expander $
+  (λ (stx)
+    (syntax-parse stx
+      [(_ x e ...)
+       (syntax/loc stx
+         (? $?
+            (and (app $-var x)
+                 (app $-spine (list e ...)))))]))
+  (λ (stx)
+    (syntax-parse stx
+      [(_ x e ...)
+       (syntax/loc stx
+         (make-$ x (list e ...)))])))
 
 (define-for-syntax sig-expander
   (λ (stx)
@@ -164,8 +223,7 @@
        (x))]
     [(_ (x:id (Π (y1 y ...) e)) elem ...)
      (syntax/loc stx
-       ((y1 y ...) x))]
-    ))
+       ((y1 y ...) x))]))
 
 (define-for-syntax tele-expander
   (λ (stx)
@@ -184,30 +242,6 @@
 
 (define-match-expander telescope
   tele-expander tele-expander)
-
-(define-for-syntax Π-expander
-  (λ (stx)
-    (syntax-parse stx
-      [(_ ((x:id e:expr) ...) cod:expr)
-       (syntax/loc stx (PI (telescope (x e) ...) (in-scope (x ...) cod)))])))
-
-(define-match-expander Π Π-expander Π-expander)
-
-(define-for-syntax lam-expander
-  (λ (stx)
-    (syntax-parse stx
-      [(_ (x:id ...) body:expr)
-       (syntax/loc stx (LAM (in-scope (x ...) body)))])))
-
-(define-match-expander lam lam-expander lam-expander)
-
-(define-for-syntax $-expander
-  (λ (stx)
-    (syntax-parse stx
-      [(_ x:expr e:expr ...)
-       (syntax/loc stx (APP x (list e ...)))])))
-
-(define-match-expander $ $-expander $-expander)
 
 
 ; a signature/context is an association list
@@ -265,32 +299,29 @@
   (append xs (list x)))
 
 (define ctx?
-  (listof (cons/c free-name? PI?)))
+  (listof (cons/c free-name? Π?)))
 
 (define rtype?
-  (or/c TYPE? APP?))
+  (or/c TYPE? $?))
 
 (define type?
-  (or/c PI? rtype?))
+  (or/c Π? rtype?))
 
 (define tele?
   (listof scope?))
 
 (define spine?
-  (listof LAM?))
+  (listof lam?))
 
-(define/contract
-  (ctx-set ctx x ty)
-  (-> ctx? free-name? PI? ctx?)
+(define/contract (ctx-set ctx x ty)
+  (-> ctx? free-name? Π? ctx?)
   (dict-set ctx x ty))
 
-(define/contract
-  (ctx-ref ctx x)
-  (-> ctx? free-name? PI?)
+(define/contract (ctx-ref ctx x)
+  (-> ctx? free-name? Π?)
   (dict-ref ctx x))
 
-(define/contract
-  (chk-tele ctx tele)
+(define/contract (chk-tele ctx tele)
   (-> ctx? tele? (cons/c ctx? (listof free-name?)))
   (define (aux ctx xs tele)
     (match tele
@@ -304,8 +335,7 @@
          (aux ctx xs tele))]))
   (aux ctx '() tele))
 
-(define/contract
-  (wf-tele? ctx)
+(define/contract (wf-tele? ctx)
   (-> ctx? (-> tele? boolean?))
   (λ (tele)
     (with-handlers ([exn:fail? (λ (v) #f)])
@@ -313,34 +343,30 @@
       #t)))
 
 
-(define/contract
-  (wf-rtype? ctx)
+(define/contract (wf-rtype? ctx)
   (-> ctx? (-> rtype? boolean?))
   (λ (rty)
     (with-handlers ([exn:fail? (λ (v) #f)])
       (chk-rtype ctx rty)
       #t)))
 
-(define/contract
-  (chk-type ctx ty)
+(define/contract (chk-type ctx ty)
   (-> ctx? type? any/c)
   (match ty
-    [(PI tele cod)
+    [(? Π? (and (app Π-domain tele) (app Π-codomain cod)))
      (match (chk-tele ctx tele)
        [(cons ctx xs)
         (chk-rtype ctx (instantiate cod xs))])]))
 
 
-(define/contract
-  (wf-type? ctx)
+(define/contract (wf-type? ctx)
   (-> ctx? (-> type? boolean?))
   (λ (ty)
     (with-handlers ([exn:fail? (λ (v) #f)])
       (chk-type ctx ty)
       #t)))
 
-(define/contract
-  (chk-rtype ctx rty)
+(define/contract (chk-rtype ctx rty)
   (-> ctx? rtype? any/c)
   (match rty
     [(TYPE) #t]
@@ -348,8 +374,7 @@
      (match (inf-rtm ctx rty)
        [(TYPE) '#t])]))
 
-(define/contract
-  (chk-spine ctx tele spine)
+(define/contract (chk-spine ctx tele spine)
   (->i ((ctx ctx?)
         (tele (ctx) (wf-tele? ctx))
         (spine spine?))
@@ -363,8 +388,7 @@
   (aux ctx '() tele spine))
 
 
-(define/contract
-  (wf-spine? ctx tele)
+(define/contract (wf-spine? ctx tele)
   (->i ((ctx ctx?)
         (tele (ctx) (wf-tele? ctx)))
        (result (-> spine? boolean?)))
@@ -373,53 +397,48 @@
       (chk-spine ctx spine tele)
       #t)))
 
-(define/contract
-  (chk-ntm ctx ntm ty)
+(define/contract (chk-ntm ctx ntm ty)
   (->i ((ctx ctx?)
-        (ntm LAM?)
+        (ntm lam?)
         (ty (ctx ntm) (wf-type? ctx)))
        (result any/c))
   (match* (ntm ty)
-    [((LAM sc) (PI tele cod))
+    [((? lam? (app lam-scope sc)) (? Π? (and (app Π-domain tele) (app Π-codomain cod))))
      (match (chk-tele ctx tele)
        [(cons ctx xs)
         (chk-rtm ctx (instantiate sc xs) (instantiate cod xs))])]))
 
 
-(define/contract
-  (wf-ntm? ctx ty)
+(define/contract (wf-ntm? ctx ty)
   (->i ((ctx ctx?)
         (ty (ctx) (wf-type? ctx)))
-       (result (-> LAM? boolean?)))
+       (result (-> lam? boolean?)))
   (λ (ntm)
     (with-handlers ([exn:fail? (λ (v) #f)])
       (chk-ntm ctx ntm ty)
       #t)))
 
-(define/contract
-  (inf-rtm ctx rtm)
+(define/contract (inf-rtm ctx rtm)
   (->i ((ctx ctx?)
-        (rtm APP?))
+        (rtm $?))
        (result (ctx rtm) (wf-rtype? ctx)))
   (match rtm
-    [(APP x spine)
+    [(? $? (and (app $-var x) (app $-spine spine)))
      (match (ctx-ref ctx x)
-       [(PI tele cod)
+       [(? Π? (and (app Π-domain tele) (app Π-codomain cod)))
         (chk-spine ctx tele spine)
         (instantiate cod spine)])]))
 
-(define/contract
-  (chk-rtm ctx rtm rty)
-  (-> ctx? APP? rtype? any/c)
+(define/contract (chk-rtm ctx rtm rty)
+  (-> ctx? $? rtype? any/c)
   (if (equal? (inf-rtm ctx rtm) rty)
       #t
       (error "Type mismatch")))
 
-(define/contract
-  (wf-rtm? ctx rty)
+(define/contract (wf-rtm? ctx rty)
   (->i ((ctx ctx?)
         (rty (ctx) (wf-rtype? ctx)))
-       (result (-> APP? boolean?)))
+       (result (-> $? boolean?)))
   (λ (rtm)
     (with-handlers ([exn:fail? (λ (v) #f)])
       (chk-rtm ctx rtm rty)
