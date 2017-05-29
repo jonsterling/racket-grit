@@ -20,7 +20,13 @@
 
 (provide
  PI LAM APP TYPE
- Π lam)
+ Π lam
+ chk-type
+ chk-rtype
+ chk-tele
+ chk-ntm
+ chk-rtm
+ chk-spine)
 
 (module+ test
   (require rackunit))
@@ -217,7 +223,7 @@
   (dict-ref ctx x))
 
 (define/contract
-  (chk-ctx ctx tele)
+  (chk-tele ctx tele)
   (-> ctx? tele? (cons/c ctx? (listof free-name?)))
   (define (aux ctx xs tele)
     (match tele
@@ -236,7 +242,7 @@
   (-> ctx? type? any/c)
   (match ty
     [(PI tele cod)
-     (match (chk-ctx ctx tele)
+     (match (chk-tele ctx tele)
        [(cons ctx xs)
         (chk-rtype ctx (instantiate cod xs))])]
     [rty (chk-rtype ctx rty)]))
@@ -266,7 +272,7 @@
   (-> ctx? LAM? PI? any/c)
   (match* (ntm ty)
     [((LAM sc) (PI tele cod))
-     (match (chk-ctx ctx tele)
+     (match (chk-tele ctx tele)
        [(cons ctx xs)
         (chk-rtm ctx (instantiate sc xs) (instantiate cod xs))])]))
 
