@@ -312,6 +312,25 @@
 (define spine?
   (listof Λ?))
 
+(define/contract (ctx->tele ctx)
+  (-> ctx? tele?)
+  (define (aux xs ctx)
+    (match ctx
+      ['() '()]
+      [(cons (cons x ty) ctx)
+       (cons (abstract xs ty) (aux (snoc xs x) ctx))]))
+  (aux '() ctx))
+
+(define/contract (chk-ctx? ctx)
+  (-> ctx? any/c)
+  (chk-tele '() (ctx->tele ctx))
+  '())
+
+(define/contract (wf-ctx? ctx)
+  (-> ctx? boolean?)
+  ((wf-tele? '()) (ctx->tele ctx)))
+
+
 (define/contract (ctx-set ctx x ty)
   (-> ctx? free-name? Π? ctx?)
   (dict-set ctx x ty))
@@ -444,7 +463,6 @@
       #t)))
 
 
-
 (module+ test
   (let ([x (fresh "hello")])
     (check-equal?
@@ -464,6 +482,8 @@
            (z (Π () (nat)))
            (s (Π ((x (Π () (nat)))) (nat))))
           (nat)))
+
+  (chk-ctx? num-sig)
 
   ; An example of structural recursion over terms,
   ; using the auto-generated patterns
