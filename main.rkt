@@ -20,6 +20,8 @@
 
 (provide
  TYPE Π Λ $
+ Π? Λ? $? rtype? ctx?
+ chk-type
  chk-rtype
  chk-tele
  chk-ntm
