@@ -53,13 +53,17 @@
         (in-scope (X ...) o)))]))
 
 
-(define (pack-goal ctx rty)
+(define/contract
+  (pack-goal ctx rty)
+  (-> ctx? rtype? >>?)
   (let ([xs (map car ctx)])
     (make->> xs (make-Π (ctx->tele ctx) (abstract xs rty)))))
 
-(define (unpack-goal gl)
-  (define xs (>>-names gl))
-  (define ty (>>-ty gl))
+(define/contract
+  (unpack-goal goal)
+  (-> >>? (cons/c ctx? rtype?))
+  (define xs (>>-names goal))
+  (define ty (>>-ty goal))
   (cons (tele->ctx xs (Π-domain ty)) (instantiate (Π-codomain ty) xs)))
 
 (define-match-expander >>
@@ -75,7 +79,9 @@
          (pack-goal Γ rty))])))
 
 
-(define (eta cell)
+(define/contract
+  (eta cell)
+  (-> (cons/c free-name? Π?) Λ?)
   (match cell
     [(cons x (and (app Π-domain tele) (app Π-codomain cod)))
      (let* ([xs (map (λ (sc) (fresh)) tele)]
@@ -83,10 +89,10 @@
        (make-Λ
         (abstract xs (make-$ x (map eta ctx)))))]))
 
-(define ($$ x Γ)
+(define/contract
+  ($$ x Γ)
+  (-> free-name? ctx? $?)
   (make-$ x (map eta Γ)))
-
-
 
 
 (module+ test
