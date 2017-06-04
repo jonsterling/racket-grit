@@ -466,6 +466,10 @@
       #t)))
 
 
+;; This is a wrapper around a goal / Π type which keeps a cache of names for assumptions,
+;; which can then be used when unpacking. The result of this is that we can have user-supplied
+;; names in tactic scripts, even though naively that doesn't make scope-sense when thinking
+;; of goals as Π types.
 (struct >> (names ty)
   #:omit-define-syntaxes
   #:extra-constructor-name make->>
@@ -490,7 +494,7 @@
   (syntax-parse stx
     [(_ ((X:id goal:expr) ...) o:expr)
      (syntax/loc stx
-       (make->>
+       (proof-state
         (telescope (X goal) ...)
         (in-scope (X ...) o)))]))
 
