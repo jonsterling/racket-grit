@@ -84,12 +84,6 @@
       (rec-hash2 (Π-codomain pi))))))
 
 
-(define-for-syntax Π-expander
-  (λ (stx)
-    (syntax-parse stx
-      [(_ ((x:id e:expr) ...) cod:expr)
-       (syntax/loc stx (PI (telescope (x e) ...) (in-scope (x ...) cod)))])))
-
 (define-match-expander Π
   (λ (stx)
     (syntax-parse stx
