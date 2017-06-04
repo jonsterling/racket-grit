@@ -157,7 +157,7 @@
   ((define (write-proc ap port mode)
      (define x ($-var ap))
      (define sp ($-spine ap))
-     (define spine (string-join (for/list ([x sp]) (format "~a" x))))
+     (define spine (string-join (for/list ([x sp]) (format "~a" x)) ", "))
      (fprintf port "~a[~a]" x spine)))
 
   #:property prop:bindings
