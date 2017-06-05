@@ -322,6 +322,7 @@
        (cons (abstract xs ty) (aux (snoc xs x) ctx))]))
   (aux '() ctx))
 
+;; Need to check if this is right
 (define (tele->ctx names tele)
   (define (aux xs tele ctx)
     (match* (xs tele)

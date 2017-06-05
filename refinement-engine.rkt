@@ -19,6 +19,22 @@
  "logical-framework.rkt")
 
 
+(define (ctx-split Γ x)
+  (let-values ([(Γ0 Γ1) (splitf-at Γ (λ (cell) (equal? x (car cell))))])
+    (list Γ0 (ctx-ref Γ x) Γ1)))
+
+(define-for-syntax ctx-split-expander
+  (λ (stx)
+    (syntax-parse stx
+      [(_ Γ0:expr (x:expr A:expr) Γ1:expr)
+       (syntax/loc stx
+         (app (λ (Γ) ctx-split Γ x) (list Γ0 Α Γ1)))])))
+
+(define-match-expander with-hyp
+  ctx-split-expander
+  ctx-split-expander)
+
+
 ;; This is a wrapper around a goal / Π type which keeps a cache of names for assumptions,
 ;; which can then be used when unpacking. The result of this is that we can have user-supplied
 ;; names in tactic scripts, even though naively that doesn't make scope-sense when thinking
@@ -114,16 +130,21 @@
     (pair ((m (Π () (tm)))
            (n (Π () (tm))))
           (tm))
+    (fst ((m (Π () (tm))))
+         (tm))
+    (snd ((m (Π () (tm))))
+         (tm))
     (inl ((m (Π () (tm)))) (tm))
     (inr ((m (Π () (tm)))) (tm))
     (lam ((m (Π ((x (Π () (tm)))) (tm)))) (tm))
+
     (is-true ((p (Π () (prop)))) (TYPE)))
 
   ;; Here are some examples of dependent refinement rules!
   ;; I haven't actually implemented the refinement machine, which would allow you to
   ;; compose these.
 
-  (define (conj-i goal)
+  (define (conj/R goal)
     (match goal
       [(>> Γ (is-true (conj p q)))
        (subgoals
@@ -131,21 +152,22 @@
          (Y (>> Γ (is-true q))))
         (pair ($$ X Γ) ($$ Y Γ)))]))
 
-  (define (disj-i-1 goal)
+  (define (disj/R/1 goal)
     (match goal
       [(>> Γ (is-true (disj p q)))
        (subgoals
         ((X (>> Γ (is-true p))))
         (inl ($$ X Γ)))]))
 
-  (define (disj-i-2 goal)
+  (define (disj/R/2 goal)
     (match goal
       [(>> Γ (is-true (disj p q)))
        (subgoals
         ((X (>> Γ (is-true q))))
         (inr ($$ X Γ)))]))
 
-  (define ((imp-i x) goal)
+
+  (define ((imp/R x) goal)
     (match goal
       [(>> Γ (is-true (imp p q)))
        (let ([Γ/p (λ (x) (ctx-set Γ x (Π () (is-true p))))])
@@ -153,5 +175,22 @@
           ((X (>> (Γ/p x) (is-true q))))
           (lam (x) ($$ X (Γ/p x)))))]))
 
-  (conj-i (>> '() (is-true (conj (T) (F)))))
-  ((imp-i (fresh)) (>> '() (is-true (imp (F) (T))))))
+  (define (T/R goal)
+    (match goal
+      [(>> Γ (is-true (T)))
+       (subgoals () (nil))]))
+
+
+  (define ((F/E x) goal)
+    (match goal
+      [(>> (with-hyp Γ0 (x A) Γ1) (is-true p))
+       (subgoals () (nil))]
+      ))
+
+  (define x (fresh))
+  (define Γ (list (cons x (Π () (is-true (F))))) )
+  ((F/E x) (>> Γ (is-true (F))))
+
+  ;  (conj/R (>> '() (is-true (conj (T) (F)))))
+  ; ((imp/R (fresh)) (>> '() (is-true (imp (F) (T)))))
+  )
