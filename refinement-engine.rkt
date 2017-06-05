@@ -28,7 +28,7 @@
     (syntax-parse stx
       [(_ Γ0:expr (x:expr A:expr) Γ1:expr)
        (syntax/loc stx
-         (app (λ (Γ) ctx-split Γ x) (list Γ0 Α Γ1)))])))
+         (app (λ (Γ) (ctx-split Γ x)) (list Γ0 Α Γ1)))])))
 
 (define-match-expander with-hyp
   ctx-split-expander
@@ -189,8 +189,8 @@
 
   (define x (fresh))
   (define Γ (list (cons x (Π () (is-true (F))))) )
+
   ((F/E x) (>> Γ (is-true (F))))
 
-  ;  (conj/R (>> '() (is-true (conj (T) (F)))))
-  ; ((imp/R (fresh)) (>> '() (is-true (imp (F) (T)))))
-  )
+  (conj/R (>> '() (is-true (conj (T) (F)))))
+  ((imp/R (fresh)) (>> '() (is-true (imp (F) (T))))))
