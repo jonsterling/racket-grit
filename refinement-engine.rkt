@@ -185,10 +185,10 @@
       [(>> (with-hyp Γ0 (x (Π () (F))) Γ1) (is-true p))
        (subgoals () (nil))]))
 
-  (define x (fresh))
-  (define Γ (list (cons x (Π () (is-true (F))))) )
+  (let* ([x (fresh)]
+         [Γ (list (cons x (Π () (is-true (F)))))])
+    ((F/E x) (>> Γ (is-true (F)))))
 
-  ((F/E x) (>> Γ (is-true (F))))
 
   (conj/R (>> '() (is-true (conj (T) (F)))))
   ((imp/R (fresh)) (>> '() (is-true (imp (F) (T))))))
