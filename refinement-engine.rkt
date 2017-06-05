@@ -180,12 +180,10 @@
       [(>> Γ (is-true (T)))
        (subgoals () (nil))]))
 
-
   (define ((F/E x) goal)
     (match goal
-      [(>> (with-hyp Γ0 (x A) Γ1) (is-true p))
-       (subgoals () (nil))]
-      ))
+      [(>> (with-hyp Γ0 (x (Π () (F))) Γ1) (is-true p))
+       (subgoals () (nil))]))
 
   (define x (fresh))
   (define Γ (list (cons x (Π () (is-true (F))))) )
