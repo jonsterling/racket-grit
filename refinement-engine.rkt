@@ -69,14 +69,12 @@
         (in-scope (X ...) o)))]))
 
 
-(define/contract
-  (pack-goal ctx rty)
+(define/contract (pack-goal ctx rty)
   (-> ctx? rtype? >>?)
   (let ([xs (map car ctx)])
     (make->> xs (make-Π (ctx->tele ctx) (abstract xs rty)))))
 
-(define/contract
-  (unpack-goal goal)
+(define/contract (unpack-goal goal)
   (-> >>? (cons/c ctx? rtype?))
   (define xs (>>-names goal))
   (define ty (>>-ty goal))
@@ -95,8 +93,7 @@
          (pack-goal Γ rty))])))
 
 
-(define/contract
-  (eta cell)
+(define/contract (eta cell)
   (-> (cons/c free-name? Π?) Λ?)
   (match cell
     [(cons x (and (app Π-domain tele) (app Π-codomain cod)))
@@ -105,8 +102,7 @@
        (make-Λ
         (abstract xs (make-$ x (map eta ctx)))))]))
 
-(define/contract
-  ($$ x Γ)
+(define/contract ($$ x Γ)
   (-> free-name? ctx? $?)
   (make-$ x (map eta Γ)))
 
