@@ -3,95 +3,101 @@
 (require
  (for-syntax
   racket/base
-  racket/list
-  syntax/parse
-  racket/syntax
-  (for-syntax racket/base))
+  syntax/parse)
  racket/contract
- racket/fixnum
- racket/function
- racket/list
  racket/match
- racket/provide-syntax
- racket/string
- racket/dict
  "locally-nameless.rkt"
  "logical-framework.rkt")
 
 
-(define (ctx-split Γ x)
-  (let-values ([(Γ0 Γ1) (splitf-at Γ (λ (cell) (equal? x (car cell))))])
-    (list Γ0 (ctx-ref Γ x) Γ1)))
+(module hyp-pattern racket/base
+  (require (for-syntax racket/base syntax/parse)
+           racket/list
+           racket/match
+           "logical-framework.rkt")
+  (provide with-hyp)
 
-(define-for-syntax ctx-split-expander
-  (λ (stx)
+  (define (ctx-split Γ x)
+    (let-values ([(Γ0 Γ1) (splitf-at Γ (λ (cell) (equal? x (car cell))))])
+      (values Γ0 (ctx-ref Γ x) Γ1)))
+
+  (define-for-syntax ctx-split-expander
+    (λ (stx)
+      (syntax-parse stx
+        [(_ Γ0:expr (x:expr A:expr) Γ1:expr)
+         (syntax/loc stx
+           (app (λ (Γ) (ctx-split Γ x)) Γ0 Α Γ1))])))
+
+  (define-match-expander with-hyp
+    ctx-split-expander
+    ctx-split-expander))
+
+(require 'hyp-pattern)
+
+(module sequent racket/base
+  (require (for-syntax racket/base syntax/parse)
+           "locally-nameless.rkt"
+           "logical-framework.rkt"
+           racket/match
+           racket/contract)
+  (provide >> subgoals)
+
+  ;; This is a wrapper around a goal / Π type which keeps a cache of names for assumptions,
+  ;; which can then be used when unpacking. The result of this is that we can have user-supplied
+  ;; names in tactic scripts, even though naively that doesn't make scope-sense when thinking
+  ;; of goals as Π types.
+  (struct >> (names ty)
+    #:omit-define-syntaxes
+    #:extra-constructor-name make->>
+    #:transparent
+    #:property prop:bindings
+    (binder
+     (λ (goal frees i)
+       (define names (>>-names goal))
+       (define ty (>>-ty goal))
+       (match-define (binder abs-ty _) (bindings-accessor ty))
+       (make->> names (abs-ty ty frees i)))
+     (λ (goal i new-exprs)
+       (define names (>>-names goal))
+       (define ty (>>-ty goal))
+       (match-define (binder _ inst-ty) (bindings-accessor ty))
+       (make->> names (inst-ty ty i new-exprs)))))
+
+  ;; a telescope of goals, together with an extract (scope) binding the goals' metavariables
+  (struct proof-state (tele output)
+    #:transparent)
+
+  (define-syntax (subgoals stx)
     (syntax-parse stx
-      [(_ Γ0:expr (x:expr A:expr) Γ1:expr)
+      [(_ ((X:id goal:expr) ...) o:expr)
        (syntax/loc stx
-         (app (λ (Γ) (ctx-split Γ x)) (list Γ0 Α Γ1)))])))
+         (proof-state
+          (telescope (X goal) ...)
+          (in-scope (X ...) o)))]))
 
-(define-match-expander with-hyp
-  ctx-split-expander
-  ctx-split-expander)
+  (define/contract (pack-goal ctx rty)
+    (-> ctx? rtype? >>?)
+    (let ([xs (map car ctx)])
+      (make->> xs (make-Π (ctx->tele ctx) (abstract xs rty)))))
 
+  (define/contract (unpack-goal goal)
+    (-> >>? (values ctx? rtype?))
+    (define xs (>>-names goal))
+    (define ty (>>-ty goal))
+    (values (tele->ctx xs (Π-domain ty)) (instantiate (Π-codomain ty) xs)))
 
-;; This is a wrapper around a goal / Π type which keeps a cache of names for assumptions,
-;; which can then be used when unpacking. The result of this is that we can have user-supplied
-;; names in tactic scripts, even though naively that doesn't make scope-sense when thinking
-;; of goals as Π types.
-(struct >> (names ty)
-  #:omit-define-syntaxes
-  #:extra-constructor-name make->>
-  #:transparent
-  #:property prop:bindings
-  (binder
-   (λ (goal frees i)
-     (define names (>>-names goal))
-     (define ty (>>-ty goal))
-     (match-define (binder abs-ty _) (bindings-accessor ty))
-     (make->> names (abs-ty ty frees i)))
-   (λ (goal i new-exprs)
-     (define names (>>-names goal))
-     (define ty (>>-ty goal))
-     (match-define (binder _ inst-ty) (bindings-accessor ty))
-     (make->> names (inst-ty ty i new-exprs)))))
-
-;; a telescope of goals, together with an extract (scope) binding the goals' metavariables
-(struct proof-state (tele output)
-  #:transparent)
-
-(define-syntax (subgoals stx)
-  (syntax-parse stx
-    [(_ ((X:id goal:expr) ...) o:expr)
-     (syntax/loc stx
-       (proof-state
-        (telescope (X goal) ...)
-        (in-scope (X ...) o)))]))
-
-
-(define/contract (pack-goal ctx rty)
-  (-> ctx? rtype? >>?)
-  (let ([xs (map car ctx)])
-    (make->> xs (make-Π (ctx->tele ctx) (abstract xs rty)))))
-
-(define/contract (unpack-goal goal)
-  (-> >>? (cons/c ctx? rtype?))
-  (define xs (>>-names goal))
-  (define ty (>>-ty goal))
-  (cons (tele->ctx xs (Π-domain ty)) (instantiate (Π-codomain ty) xs)))
-
-(define-match-expander >>
-  (λ (stx)
-    (syntax-parse stx
-      [(_ Γ rty)
-       (syntax/loc stx
-         (app unpack-goal (cons Γ rty)))]))
-  (λ (stx)
-    (syntax-parse stx
-      [(_ Γ rty)
-       (syntax/loc stx
-         (pack-goal Γ rty))])))
-
+  (define-match-expander >>
+    (λ (stx)
+      (syntax-parse stx
+        [(_ Γ rty)
+         (syntax/loc stx
+           (app unpack-goal Γ rty))]))
+    (λ (stx)
+      (syntax-parse stx
+        [(_ Γ rty)
+         (syntax/loc stx
+           (pack-goal Γ rty))]))))
+(require 'sequent)
 
 (define/contract (eta cell)
   (-> (cons/c free-name? Π?) Λ?)
