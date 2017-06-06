@@ -144,46 +144,49 @@
   ;; I haven't actually implemented the refinement machine, which would allow you to
   ;; compose these.
 
-  (define (conj/R goal)
-    (match goal
-      [(>> Γ (is-true (conj p q)))
-       (subgoals
-        ((X (>> Γ (is-true p)))
-         (Y (>> Γ (is-true q))))
-        (pair ($$ X Γ) ($$ Y Γ)))]))
+  (define-syntax (rule stx)
+    (syntax-parse stx
+      [(_ goal ((x:id subgoal) ...) extract)
+       (syntax/loc stx
+         (match-lambda [goal (subgoals ((x subgoal) ...) extract)]))]))
 
-  (define (disj/R/1 goal)
-    (match goal
-      [(>> Γ (is-true (disj p q)))
-       (subgoals
-        ((X (>> Γ (is-true p))))
-        (inl ($$ X Γ)))]))
+  (define-syntax (define-rule stx)
+    (syntax-parse stx
+      [(_ head goal definition:expr ... ((x:id subgoal) ...) extract)
+       (syntax/loc stx
+         (define head
+           (lambda (g)
+             (match g
+               [goal
+                definition ...
+                (subgoals ((x subgoal) ...) extract)]))))]))
+  
+  (define-rule conj/R (>> Γ (is-true (conj p q)))
+    ([X (>> Γ (is-true p))]
+     [Y (>> Γ (is-true q))])
+    (pair ($$ X Γ) ($$ Y Γ)))
 
-  (define (disj/R/2 goal)
-    (match goal
-      [(>> Γ (is-true (disj p q)))
-       (subgoals
-        ((X (>> Γ (is-true q))))
-        (inr ($$ X Γ)))]))
+  (define-rule disj/R/1 (>> Γ (is-true (disj p q)))
+    ([X (>> Γ (is-true p))])
+    (inl ($$ X Γ)))
 
+  (define-rule disj/R/2 (>> Γ (is-true (disj p q)))
+    ([X (>> Γ (is-true q))])
+    (inr ($$ X Γ)))
 
-  (define ((imp/R x) goal)
-    (match goal
-      [(>> Γ (is-true (imp p q)))
-       (let ([Γ/p (λ (x) (ctx-set Γ x (Π () (is-true p))))])
-         (subgoals
-          ((X (>> (Γ/p x) (is-true q))))
-          (lam (x) ($$ X (Γ/p x)))))]))
+  (define-rule (imp/R x) (>> Γ (is-true (imp p q)))
+    (define (Γ/p x)
+      (ctx-set Γ x (Π () (is-true p))))
+    ([X (>> (Γ/p x) (is-true q))])
+    (lam (x) ($$ X (Γ/p x))))
 
-  (define (T/R goal)
-    (match goal
-      [(>> Γ (is-true (T)))
-       (subgoals () (nil))]))
+  (define-rule T/R (>> Γ (is-true (T)))
+    ()
+    (nil))
 
-  (define ((F/L x) goal)
-    (match goal
-      [(>> (with-hyp Γ0 (x (Π () (F))) Γ1) (is-true p))
-       (subgoals () (nil))]))
+  (define-rule (F/L x) (>> (with-hyp Γ0 (x (Π () (F))) Γ1) (is-true p))
+    ()
+    (nil))
 
   (let* ([x (fresh)]
          [Γ (list (cons x (Π () (is-true (F)))))])
