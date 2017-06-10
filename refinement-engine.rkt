@@ -113,6 +113,24 @@
   (make-$ x (map eta Γ)))
 
 
+(define-syntax (rule stx)
+  (syntax-parse stx
+    [(_ goal ((x:id subgoal) ...) extract)
+     (syntax/loc stx
+       (match-lambda [goal (subgoals ((x subgoal) ...) extract)]))]))
+
+(define-syntax (define-rule stx)
+  (syntax-parse stx
+    [(_ head goal definition:expr ... ((x:id subgoal) ...) extract)
+     (syntax/loc stx
+       (define head
+         (lambda (g)
+           (match g
+             [goal
+              definition ...
+              (subgoals ((x subgoal) ...) extract)]))))]))
+
+
 (module+ test
   (define-signature L
     (prop () (TYPE))
@@ -146,23 +164,6 @@
   ;; I haven't actually implemented the refinement machine, which would allow you to
   ;; compose these.
 
-  (define-syntax (rule stx)
-    (syntax-parse stx
-      [(_ goal ((x:id subgoal) ...) extract)
-       (syntax/loc stx
-         (match-lambda [goal (subgoals ((x subgoal) ...) extract)]))]))
-
-  (define-syntax (define-rule stx)
-    (syntax-parse stx
-      [(_ head goal definition:expr ... ((x:id subgoal) ...) extract)
-       (syntax/loc stx
-         (define head
-           (lambda (g)
-             (match g
-               [goal
-                definition ...
-                (subgoals ((x subgoal) ...) extract)]))))]))
-  
   (define-rule conj/R (>> Γ (is-true (conj p q)))
     ([X (>> Γ (is-true p))]
      [Y (>> Γ (is-true q))])
