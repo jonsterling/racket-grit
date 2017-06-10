@@ -203,6 +203,10 @@
        '()
        '()))))
 
+(define (subst es xs)
+  (λ (e)
+    instantiate (abstract xs e) es))
+
 
 (module+ test
   (define-signature L
@@ -238,6 +242,29 @@
      [Y (>> Γ (is-true q))])
     (Λ* Γ (pair ($* X Γ) ($* Y Γ))))
 
+  ; The following rule doesn't macro-expand properly :(
+  (define-rule (conj/L x x0 x1)
+    (>>
+     (and Γ (with-hyp Γ0 (x (Π () (is-true (conj p q)))) Γ1))
+     (is-true r))
+    (define Γ/pq
+      (append
+       Γ0
+       (cons x0 (is-true p))           ; Why is 'p' out of scope???
+       (cons x1 (is-true q))
+       (map
+        (λ (cell)
+          (cons
+           (car cell)
+           (subst (list (pair ($ x0) ($ x1))) (list x) (cdr cell))))
+        Γ1)))
+    ([X (>> Γ/pq (is-true (subst (list (pair ($ x0) ($ x1))) (list x) r)))])
+    (Λ* Γ
+        (subst
+         (list (fst ($ x)) (snd ($ x)))
+         (list x0 x1)
+         ($* X Γ/pq))))
+
   (define-rule disj/R/1 (>> Γ (is-true (disj p q)))
     ([X (>> Γ (is-true p))])
     (Λ* Γ (inl ($* X Γ))))
@@ -256,18 +283,12 @@
     ()
     (Λ* Γ (nil)))
 
-  (define-rule (F/L x) (>> (and Γ (with-hyp Γ0 (x (Π () (F))) Γ1)) (is-true p))
+  (define-rule (F/L x)
+    (>>
+     (and Γ (with-hyp Γ0 (x (Π () (is-true (F)))) Γ1))
+     (is-true p))
     ()
     (Λ* Γ (nil)))
-
-  ;; (let* ([x (fresh)]
-  ;;        [Γ (list (cons x (Π () (is-true (F)))))])
-  ;;   ((F/L x) (>> Γ (is-true (F)))))
-
-
-  ;(conj/R (>> '() (is-true (conj (T) (F)))))
-  ;((imp/R (fresh)) (>> '() (is-true (imp (F) (T)))))
-
 
   (define my-script
     (multicut
