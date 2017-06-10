@@ -40,7 +40,7 @@
            "logical-framework.rkt"
            racket/match
            racket/contract)
-  (provide >> subgoals >>? proof-state proof-state? >:)
+  (provide >> subgoals >>? >>-ty proof-state proof-state? >:)
 
   ;; This is a wrapper around a goal / Π type which keeps a cache of names for assumptions,
   ;; which can then be used when unpacking. The result of this is that we can have user-supplied
@@ -164,6 +164,11 @@
   (-> >>? proof-state?))
 
 
+(define id-tac
+  (λ (jdg)
+    (subgoals
+     ((X jdg))
+     (eta (cons X (>>-ty jdg))))))
 
 ; Analogous to the THENL tactical
 (define (multicut t1 . ts)
@@ -179,11 +184,24 @@
           output
           (append subgoals-out subgoals1)
           (append env-out (list output1))))]
-      [(_ _) (error "welp") ]))
+      [(_ _) (error "Subgoals and tactics must be of same length") ]))
+
+  (define (balance-tactics subgoals tactics)
+    (match* (subgoals tactics)
+      [('() '()) '()]
+      [((cons goal subgoals) '())
+       (cons id-tac (balance-tactics subgoals '()))]
+      [((cons goal subgoals) (cons tactic tactics))
+       (cons tactic (balance-tactics subgoals tactics))]))
 
   (λ (jdg)
     (match-let ([(proof-state subgoals output) (t1 jdg)])
-      (multicut/aux subgoals ts output '() '()))))
+      (multicut/aux
+       subgoals
+       (balance-tactics subgoals ts)
+       output
+       '()
+       '()))))
 
 
 (module+ test
@@ -245,6 +263,7 @@
   ;; (let* ([x (fresh)]
   ;;        [Γ (list (cons x (Π () (is-true (F)))))])
   ;;   ((F/L x) (>> Γ (is-true (F)))))
+
 
   ;(conj/R (>> '() (is-true (conj (T) (F)))))
   ;((imp/R (fresh)) (>> '() (is-true (imp (F) (T)))))
