@@ -240,6 +240,11 @@
          (tm))
     (inl ((m (Π () (tm)))) (tm))
     (inr ((m (Π () (tm)))) (tm))
+    (split ((m (Π () (tm)))
+            (l (Π ((x (Π () (tm)))) (tm)))
+            (r (Π ((y (Π () (tm)))) (tm)))) ; for some reason, I can't use 'x' here
+           (tm))
+    
     (lam ((m (Π ((x (Π () (tm)))) (tm)))) (tm))
 
     (is-true ((p (Π () (prop)))) (TYPE)))
@@ -272,6 +277,25 @@
   (define-rule disj/R/2 (>> Γ (is-true (disj p q)))
     ([X (>> Γ (is-true q))])
     (Λ* Γ (inr ($* X Γ))))
+
+  (define-rule (disj/L x)
+    (>>
+     (and Γ (with-hyp Γ0 (x (Π () (is-true (disj p q)))) Γ1))
+     (is-true r))
+    (define (Γ/p y)
+      (append
+       Γ0
+       (list (cons y (Π () (is-true p))))
+       (map-ctx (subst (list (inl ($ y))) (list x)) Γ1)))
+     (define (Γ/q y)
+      (append
+       Γ0
+       (list (cons y (Π () (is-true q))))
+       (map-ctx (subst (list (inr ($ y))) (list x)) Γ1)))
+    ([L (>> (Γ/p x) (subst (list (inl ($ x))) (list x) (is-true r)))]
+     [R (>> (Γ/q x) (subst (list (inr ($ x))) (list x) (is-true r)))])
+    (Λ* Γ (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr)))))
+
 
   (define-rule (imp/R x) (>> Γ (is-true (imp p q)))
     (define (Γ/p x)
