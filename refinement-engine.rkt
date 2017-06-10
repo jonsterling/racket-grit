@@ -14,14 +14,21 @@
   (require (for-syntax racket/base syntax/parse)
            racket/list
            racket/match
-           "logical-framework.rkt")
+           "logical-framework.rkt"
+           "locally-nameless.rkt")
   (provide with-hyp)
 
   (define (ctx-split Γ x)
     (let* ([p (λ (cell) (not (equal? x (car cell))))]
-           [ Γ0 (takef Γ p)]
+           [Γ0 (takef Γ p)]
            [Γ1 (cdr (dropf Γ p))])
-      (values Γ0 (ctx-ref Γ x) Γ1)))
+      (values
+       Γ0
+       (ctx-ref Γ x)
+       (λ (e)
+         ctx-map
+         (λ (a) (instantiate (abstract (list x) a) (list e)))
+         Γ1))))
 
   (define-for-syntax ctx-split-expander
     (λ (stx)
@@ -227,14 +234,6 @@
            (abstract (list x) e)
            (list ex)))]))
 
-(define (map-cell f)
-  (λ (cell)
-    (cons
-     (car cell)
-     (f (cdr cell)))))
-
-(define (map-ctx f Γ)
-  (map (map-cell f) Γ))
 
 (module+ test
   (define-signature L
@@ -283,7 +282,7 @@
       (append
        Γ0
        (list (cons x0 (Π () (is-true p))) (cons x1 (Π () (is-true q))))
-       (map-ctx (λ (e) (subst (x (pair ($ x0) ($ x1))) e)) Γ1)))
+       (Γ1 (pair ($ x0) ($ x1)))))
     ([X (>> Γ/pq (is-true (subst (x (pair ($ x0) ($ x1))) r)))])
     (Λ* Γ
         (subst
@@ -307,12 +306,12 @@
       (append
        Γ0
        (list (cons y (Π () (is-true p))))
-       (map-ctx (λ (e) (subst (x (inl ($ y))) e)) Γ1)))
+       (Γ1 (inl ($ y)))))
     (define (Γ/q y)
       (append
        Γ0
        (list (cons y (Π () (is-true q))))
-       (map-ctx (λ (e) (subst (x (inr ($ y))) e)) Γ1)))
+       (Γ1 (inr ($ y)))))
     ([L (>> (Γ/p y) (subst (x (inl ($ y))) (is-true r)))]
      [R (>> (Γ/q y) (subst (x (inr ($ y))) (is-true r)))])
     (Λ* Γ (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr)))))

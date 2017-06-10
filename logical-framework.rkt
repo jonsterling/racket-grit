@@ -25,7 +25,7 @@
  make-Π Π-domain Π-codomain
  make-Λ
  make-$
- ctx-set ctx-ref
+ ctx-set ctx-ref ctx-map
  ctx->tele tele->ctx
  chk-type
  chk-rtype
@@ -348,6 +348,15 @@
 (define/contract (ctx-ref ctx x)
   (-> ctx? free-name? any/c)
   (dict-ref ctx x))
+
+(define (cell-map f)
+  (λ (cell)
+    (cons
+     (car cell)
+     (f (cdr cell)))))
+
+(define (ctx-map f Γ)
+  (map (cell-map f) Γ))
 
 (define/contract (chk-tele ctx tele)
   (-> ctx? tele? (cons/c ctx? (listof free-name?)))
