@@ -93,7 +93,7 @@
 
   (define/contract (unpack-goal goal)
     (-> >>? (values ctx? rtype?))
-    (define xs (>>-names goal))
+    (define xs (reverse (>>-names goal))) ; this works, but I need to understand why
     (define ty (>>-ty goal))
     (values (tele->ctx xs (Π-domain ty)) (instantiate (Π-codomain ty) xs)))
 
@@ -203,14 +203,14 @@
        '()
        '()))))
 
-(define (subst es xs)
-  (λ (e)
-    instantiate (abstract xs e) es))
+(define (subst es xs e)
+  (instantiate (abstract xs e) es))
 
-(define (map-cell f cell)
-  (cons
-   (car cell)
-   (f (cdr cell))))
+(define (map-cell f)
+  (λ (cell)
+    (cons
+     (car cell)
+     (f (cdr cell)))))
 
 (define (map-ctx f Γ)
   (map (map-cell f) Γ))
@@ -242,9 +242,9 @@
     (inr ((m (Π () (tm)))) (tm))
     (split ((m (Π () (tm)))
             (l (Π ((x (Π () (tm)))) (tm)))
-            (r (Π ((y (Π () (tm)))) (tm)))) ; for some reason, I can't use 'x' here
+            (r (Π ((y (Π () (tm)))) (tm)))) ; for some reason, I can't use 'x' here. something about duplicate attributes
            (tm))
-    
+
     (lam ((m (Π ((x (Π () (tm)))) (tm)))) (tm))
 
     (is-true ((p (Π () (prop)))) (TYPE)))
@@ -262,7 +262,7 @@
       (append
        Γ0
        (list (cons x0 (Π () (is-true p))) (cons x1 (Π () (is-true q))))
-       (map-ctx (subst (list (pair ($ x0) ($ x1))) (list x)) Γ1)))
+       (map-ctx (λ (e) (subst (list (pair ($ x0) ($ x1))) (list x))) Γ1)))
     ([X (>> Γ/pq (is-true (subst (list (pair ($ x0) ($ x1))) (list x) r)))])
     (Λ* Γ
         (subst
@@ -278,7 +278,7 @@
     ([X (>> Γ (is-true q))])
     (Λ* Γ (inr ($* X Γ))))
 
-  (define-rule (disj/L x)
+  (define-rule (disj/L x y)
     (>>
      (and Γ (with-hyp Γ0 (x (Π () (is-true (disj p q)))) Γ1))
      (is-true r))
@@ -286,14 +286,14 @@
       (append
        Γ0
        (list (cons y (Π () (is-true p))))
-       (map-ctx (subst (list (inl ($ y))) (list x)) Γ1)))
-     (define (Γ/q y)
+       (map-ctx (λ (e) (subst (list (inl ($ y))) (list x))) Γ1)))
+    (define (Γ/q y)
       (append
        Γ0
        (list (cons y (Π () (is-true q))))
-       (map-ctx (subst (list (inr ($ y))) (list x)) Γ1)))
-    ([L (>> (Γ/p x) (subst (list (inl ($ x))) (list x) (is-true r)))]
-     [R (>> (Γ/q x) (subst (list (inr ($ x))) (list x) (is-true r)))])
+       (map-ctx (λ (e) (subst (list (inr ($ y))) (list x))) Γ1)))
+    ([L (>> (Γ/p y) (subst (list (inl ($ y))) (list x) (is-true r)))]
+     [R (>> (Γ/q y) (subst (list (inr ($ y))) (list x) (is-true r)))])
     (Λ* Γ (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr)))))
 
 
@@ -322,4 +322,31 @@
       T/R
       T/R)))
 
-  (my-script (>> '() (is-true (imp (F) (conj (T) (T)))))))
+  (define probe
+    (λ (jdg)
+      (printf "jdg: ~a\n" jdg)
+      (id-tac jdg)))
+
+  (let* ([x (fresh "x")]
+         [y (fresh "y")]
+         [goal
+          (>>
+           '()
+           (is-true
+            (imp
+             (disj (T) (F))
+             (conj (T) (T)))))]
+         [script
+          (multicut
+           (imp/R x)
+           (multicut
+            (disj/L x y)
+            (multicut
+             conj/R
+             T/R
+             T/R)
+            (F/L y)))])
+    (script goal))
+
+  ;  (my-script (>> '() (is-true (imp (F) (conj (T) (T))))))
+  )
