@@ -329,7 +329,7 @@
       [('() '()) ctx]
       [((cons x xs) (cons sc tele))
        (aux xs tele (ctx-set ctx x (instantiate sc (map car ctx))))]))
-  (aux (reverse names) tele '()))
+  (aux names tele '()))
 
 (define/contract (chk-ctx? ctx)
   (-> ctx? any/c)
