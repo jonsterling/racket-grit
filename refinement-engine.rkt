@@ -18,7 +18,9 @@
   (provide with-hyp)
 
   (define (ctx-split Γ x)
-    (let-values ([(Γ0 Γ1) (splitf-at Γ (λ (cell) (equal? x (car cell))))])
+    (let* ([p (λ (cell) (not (equal? x (car cell))))]
+           [ Γ0 (takef Γ p)]
+           [Γ1 (cdr (dropf Γ p))])
       (values Γ0 (ctx-ref Γ x) Γ1)))
 
   (define-for-syntax ctx-split-expander
