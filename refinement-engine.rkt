@@ -16,7 +16,7 @@
            racket/match
            "logical-framework.rkt"
            "locally-nameless.rkt")
-  (provide with-hyp)
+  (provide with-hyp unapply)
 
   (define (ctx-split Γ x)
     (let* ([p (λ (cell) (not (equal? x (car cell))))]
@@ -37,9 +37,24 @@
          (syntax/loc stx
            (app (λ (Γ) (ctx-split Γ x)) Γ0 A Γ1))])))
 
+  (define-for-syntax unapply-hyp-expander
+    (λ (stx)
+      (syntax-parse stx
+        [(_ f:expr x:expr ...)
+         (syntax/loc stx
+           (app
+            (λ (e)
+              (λ (ex . exs)
+                (instantiate
+                    (abstract (list x ...) e)
+                    (cons ex exs))))
+            f))])))
+
   (define-match-expander with-hyp
-    ctx-split-expander
-    ctx-split-expander))
+    ctx-split-expander)
+
+  (define-match-expander unapply
+    unapply-hyp-expander))
 
 (require 'hyp-pattern)
 
@@ -277,13 +292,13 @@
   (define-rule (conj/L x x0 x1)
     (>>
      (and Γ (with-hyp Γ0 (x (Π () (is-true (conj p q)))) Γ1))
-     (is-true r))
+     (is-true (unapply r x)))
     (define Γ/pq
       (append
        Γ0
        (list (cons x0 (Π () (is-true p))) (cons x1 (Π () (is-true q))))
        (Γ1 (pair ($ x0) ($ x1)))))
-    ([X (>> Γ/pq (is-true (subst (x (pair ($ x0) ($ x1))) r)))])
+    ([X (>> Γ/pq (is-true (r (pair ($ x0) ($ x1)))))])
     (Λ* Γ
         (subst
          ((x0 (fst ($ x)))
@@ -301,7 +316,7 @@
   (define-rule (disj/L x y)
     (>>
      (and Γ (with-hyp Γ0 (x (Π () (is-true (disj p q)))) Γ1))
-     (is-true r))
+     (is-true (unapply r x)))
     (define (Γ/p y)
       (append
        Γ0
@@ -312,8 +327,8 @@
        Γ0
        (list (cons y (Π () (is-true q))))
        (Γ1 (inr ($ y)))))
-    ([L (>> (Γ/p y) (subst (x (inl ($ y))) (is-true r)))]
-     [R (>> (Γ/q y) (subst (x (inr ($ y))) (is-true r)))])
+    ([L (>> (Γ/p y) (is-true (r (inl ($ y)))))]
+     [R (>> (Γ/q y) (is-true (r (inr ($ y)))))])
     (Λ* Γ (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr)))))
 
 
