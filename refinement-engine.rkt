@@ -26,7 +26,7 @@
       (syntax-parse stx
         [(_ Γ0:expr (x:expr A:expr) Γ1:expr)
          (syntax/loc stx
-           (app (λ (Γ) (ctx-split Γ x)) Γ0 Α Γ1))])))
+           (app (λ (Γ) (ctx-split Γ x)) Γ0 A Γ1))])))
 
   (define-match-expander with-hyp
     ctx-split-expander
@@ -250,7 +250,7 @@
     (define Γ/pq
       (append
        Γ0
-       (cons x0 (is-true p))           ; Why is 'p' out of scope???
+       (cons x0 (is-true p))
        (cons x1 (is-true q))
        (map
         (λ (cell)
