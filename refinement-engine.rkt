@@ -314,19 +314,6 @@
     ()
     (Λ* Γ (nil)))
 
-  (define my-script
-    (multicut
-     (imp/R (fresh))
-     (multicut
-      conj/R
-      T/R
-      T/R)))
-
-  (define probe
-    (λ (jdg)
-      (printf "jdg: ~a\n" jdg)
-      (id-tac jdg)))
-
   (let* ([x (fresh "x")]
          [y (fresh "y")]
          [goal
@@ -346,7 +333,4 @@
              T/R
              T/R)
             (F/L y)))])
-    (script goal))
-
-  ;  (my-script (>> '() (is-true (imp (F) (conj (T) (T))))))
-  )
+    (script goal)))
