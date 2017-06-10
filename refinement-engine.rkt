@@ -203,6 +203,15 @@
        '()
        '()))))
 
+(define (orelse t1 . ts)
+  (match ts
+    ['() t1]
+    [(cons t ts)
+     (λ (goal)
+       (with-handlers ([exn:fail? (λ (e) ((apply orelse (cons t ts)) goal))])
+         (t1 goal)))]))
+
+
 (define (subst es xs e)
   (instantiate (abstract xs e) es))
 
