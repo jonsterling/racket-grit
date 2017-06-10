@@ -300,7 +300,7 @@
   (append xs (list x)))
 
 (define ctx?
-  (listof (cons/c free-name? Π?)))
+  (listof (cons/c free-name? any/c)))
 
 (define rtype?
   (or/c TYPE? $?))
@@ -342,11 +342,11 @@
 
 
 (define/contract (ctx-set ctx x ty)
-  (-> ctx? free-name? Π? ctx?)
+  (-> ctx? free-name? any/c ctx?)
   (dict-set ctx x ty))
 
 (define/contract (ctx-ref ctx x)
-  (-> ctx? free-name? Π?)
+  (-> ctx? free-name? any/c)
   (dict-ref ctx x))
 
 (define/contract (chk-tele ctx tele)
