@@ -207,6 +207,13 @@
   (λ (e)
     instantiate (abstract xs e) es))
 
+(define (map-cell f cell)
+  (cons
+   (car cell)
+   (f (cdr cell))))
+
+(define (map-ctx f Γ)
+  (map (map-cell f) Γ))
 
 (module+ test
   (define-signature L
@@ -242,7 +249,6 @@
      [Y (>> Γ (is-true q))])
     (Λ* Γ (pair ($* X Γ) ($* Y Γ))))
 
-  ; The following rule doesn't macro-expand properly :(
   (define-rule (conj/L x x0 x1)
     (>>
      (and Γ (with-hyp Γ0 (x (Π () (is-true (conj p q)))) Γ1))
@@ -250,14 +256,8 @@
     (define Γ/pq
       (append
        Γ0
-       (cons x0 (is-true p))
-       (cons x1 (is-true q))
-       (map
-        (λ (cell)
-          (cons
-           (car cell)
-           (subst (list (pair ($ x0) ($ x1))) (list x) (cdr cell))))
-        Γ1)))
+       (list (cons x0 (Π () (is-true p))) (cons x1 (Π () (is-true q))))
+       (map-ctx (subst (list (pair ($ x0) ($ x1))) (list x)) Γ1)))
     ([X (>> Γ/pq (is-true (subst (list (pair ($ x0) ($ x1))) (list x) r)))])
     (Λ* Γ
         (subst
