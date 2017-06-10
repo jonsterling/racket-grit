@@ -212,8 +212,18 @@
          (t1 goal)))]))
 
 
-(define (subst es xs e)
-  (instantiate (abstract xs e) es))
+(define-syntax (subst stx)
+  (syntax-parse stx
+    [(_ ((x:id ex:expr) ...) e:expr)
+     (syntax/loc stx
+       (instantiate
+           (abstract (list x ...) e)
+           (list ex ...)))]
+    [(_ (x:id ex:expr) e:expr)
+     (syntax/loc stx
+       (instantiate
+           (abstract (list x) e)
+           (list ex)))]))
 
 (define (map-cell f)
   (λ (cell)
@@ -271,12 +281,12 @@
       (append
        Γ0
        (list (cons x0 (Π () (is-true p))) (cons x1 (Π () (is-true q))))
-       (map-ctx (λ (e) (subst (list (pair ($ x0) ($ x1))) (list x))) Γ1)))
-    ([X (>> Γ/pq (is-true (subst (list (pair ($ x0) ($ x1))) (list x) r)))])
+       (map-ctx (λ (e) (subst (x (pair ($ x0) ($ x1))) e)) Γ1)))
+    ([X (>> Γ/pq (is-true (subst (x (pair ($ x0) ($ x1))) r)))])
     (Λ* Γ
         (subst
-         (list (fst ($ x)) (snd ($ x)))
-         (list x0 x1)
+         ((x0 (fst ($ x)))
+          (x1 (snd ($ x))))
          ($* X Γ/pq))))
 
   (define-rule disj/R/1 (>> Γ (is-true (disj p q)))
@@ -295,14 +305,14 @@
       (append
        Γ0
        (list (cons y (Π () (is-true p))))
-       (map-ctx (λ (e) (subst (list (inl ($ y))) (list x))) Γ1)))
+       (map-ctx (λ (e) (subst (x (inl ($ y))) e)) Γ1)))
     (define (Γ/q y)
       (append
        Γ0
        (list (cons y (Π () (is-true q))))
-       (map-ctx (λ (e) (subst (list (inr ($ y))) (list x))) Γ1)))
-    ([L (>> (Γ/p y) (subst (list (inl ($ y))) (list x) (is-true r)))]
-     [R (>> (Γ/q y) (subst (list (inr ($ y))) (list x) (is-true r)))])
+       (map-ctx (λ (e) (subst (x (inr ($ y))) e)) Γ1)))
+    ([L (>> (Γ/p y) (subst (x (inl ($ y))) (is-true r)))]
+     [R (>> (Γ/q y) (subst (x (inr ($ y))) (is-true r)))])
     (Λ* Γ (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr)))))
 
 
