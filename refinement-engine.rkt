@@ -93,7 +93,7 @@
 
   (define/contract (unpack-goal goal)
     (-> >>? (values ctx? rtype?))
-    (define xs (>>-names goal)) ; this works, but I need to understand why
+    (define xs (>>-names goal))
     (define ty (>>-ty goal))
     (values (tele->ctx xs (Π-domain ty)) (instantiate (Π-codomain ty) xs)))
 
