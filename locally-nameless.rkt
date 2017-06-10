@@ -129,7 +129,7 @@
      expr))
   #:methods gen:custom-write
   ((define (write-proc x port mode)
-     (fprintf port "#<free:~a>" (free-name-sym x))))
+     (fprintf port "~a" (free-name-sym x))))
   #:methods gen:equal+hash
   ((define (equal-proc fn1 fn2 rec-equal?)
      (eqv? (free-name-sym fn1) (free-name-sym fn2)))
