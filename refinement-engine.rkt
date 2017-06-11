@@ -100,9 +100,9 @@
   (struct proof-state (tele output)
     #:transparent)
 
-  (define (complete-proof? st)
-    (and (proof-state? st)
-         (zero? (scope-valence (proof-state-output st)))))
+  (define/contract (complete-proof? st)
+    (-> proof-state? boolean?)
+    (zero? (scope-valence (proof-state-output st))))
 
   (define/contract (proof-extract st)
     (-> complete-proof? Λ?)
