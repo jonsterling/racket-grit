@@ -11,11 +11,12 @@
 
 
 (module hyp-pattern racket/base
-  (require (for-syntax racket/base syntax/parse)
-           racket/list
-           racket/match
-           "logical-framework.rkt"
-           "locally-nameless.rkt")
+  (require
+   (for-syntax racket/base syntax/parse)
+   racket/list
+   racket/match
+   "logical-framework.rkt"
+   "locally-nameless.rkt")
   (provide with-hyp unapply)
 
   (define (ctx-split Γ x)
@@ -59,11 +60,12 @@
 (require 'hyp-pattern)
 
 (module sequent racket/base
-  (require (for-syntax racket/base syntax/parse)
-           "locally-nameless.rkt"
-           "logical-framework.rkt"
-           racket/match
-           racket/contract)
+  (require
+   (for-syntax racket/base syntax/parse)
+   "locally-nameless.rkt"
+   "logical-framework.rkt"
+   racket/match
+   racket/contract)
   (provide >> subgoals >>? >>-ty proof-state proof-state? >:)
 
   ;; This is a wrapper around a goal / Π type which keeps a cache of names for assumptions,
@@ -188,11 +190,12 @@
   (-> >>? proof-state?))
 
 
-(define id-tac
-  (λ (jdg)
+(define/contract id-tac
+  tac/c
+  (λ (goal)
     (subgoals
-     ((X jdg))
-     (eta (cons X (>>-ty jdg))))))
+     ((X goal))
+     (eta (cons X (>>-ty goal))))))
 
 ; Analogous to the THENL tactical
 (define (multicut t1 . ts)
@@ -218,8 +221,8 @@
       [((cons goal subgoals) (cons tactic tactics))
        (cons tactic (balance-tactics subgoals tactics))]))
 
-  (λ (jdg)
-    (match-let ([(proof-state subgoals output) (t1 jdg)])
+  (λ (goal)
+    (match-let ([(proof-state subgoals output) (t1 goal)])
       (multicut/aux
        subgoals
        (balance-tactics subgoals ts)
@@ -232,7 +235,8 @@
     ['() t1]
     [(cons t ts)
      (λ (goal)
-       (with-handlers ([exn:fail? (λ (e) ((apply orelse (cons t ts)) goal))])
+       (with-handlers
+         ([exn:fail? (λ (e) ((apply orelse (cons t ts)) goal))])
          (t1 goal)))]))
 
 
