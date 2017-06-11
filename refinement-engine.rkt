@@ -324,7 +324,7 @@
     ([X (>> Γ (is-true q))])
     (Λ* Γ (inr ($* X Γ))))
 
-  (define-rule (disj/L x y)
+  (define-rule (disj/L x)
     (>>
      (and Γ (with-hyp Γ0 (x (Π () (is-true (disj p q)))) Γ1))
      (is-true (unapply r x)))
@@ -338,8 +338,8 @@
        Γ0
        (list (cons y (Π () (is-true q))))
        (Γ1 (inr ($ y)))))
-    ([L (>> (Γ/p y) (is-true (r (inl ($ y)))))]
-     [R (>> (Γ/q y) (is-true (r (inr ($ y)))))])
+    ([L (>> (Γ/p x) (is-true (r (inl ($ x)))))]
+     [R (>> (Γ/q x) (is-true (r (inr ($ x)))))])
     (Λ* Γ (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr)))))
 
 
@@ -360,8 +360,28 @@
     ()
     (Λ* Γ (nil)))
 
-  (let* ([x (fresh "x")]
-         [y (fresh "y")]
+  (define-syntax (t/lam stx)
+    (syntax-parse stx
+      [(_ (x:id) t:expr)
+       (syntax/loc stx
+         (let ([x (fresh)])
+           (multicut
+            (imp/R x)
+            t)))]))
+
+  (define (t/split x t1 t2)
+    (multicut
+     (disj/L x)
+     t1
+     t2))
+
+  (define (t/pair t1 t2)
+    (multicut
+     conj/R
+     t1
+     t2))
+
+  (let* ([y (fresh "y")]
          [goal
           (>>
            '()
@@ -369,14 +389,5 @@
             (imp
              (disj (T) (F))
              (conj (T) (T)))))]
-         [script
-          (multicut
-           (imp/R x)
-           (multicut
-            (disj/L x y)
-            (multicut
-             conj/R
-             T/R
-             T/R)
-            (F/L y)))])
+         [script (t/lam (x) (t/split x (t/pair (hyp x) T/R) (F/L x)))])
     (script goal)))
