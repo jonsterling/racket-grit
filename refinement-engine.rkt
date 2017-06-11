@@ -15,11 +15,13 @@
     (for-syntax racket/base syntax/parse)
     racket/list
     racket/match
+    racket/contract
     "logical-framework.rkt"
     "locally-nameless.rkt")
   (provide with-hyp unapply)
 
-  (define (ctx-split Γ x)
+  (define/contract (ctx-split Γ x)
+    (-> ctx? free-name? (values ctx? Π? (-> rtype? ctx?)))
     (let* ([p (λ (cell) (not (equal? x (car cell))))]
            [Γ0 (takef Γ p)]
            [Γ1 (cdr (dropf Γ p))])
@@ -262,8 +264,9 @@
     ['() t1]
     [(cons t ts)
      (λ (goal)
-       (with-handlers
-           ([exn:fail? (λ (e) ((apply orelse (cons t ts)) goal))])
+       (with-handlers ([exn:fail:refinement?
+                        (λ (e)
+                          ((apply orelse (cons t ts)) goal))])
          (t1 goal)))]))
 
 
@@ -396,18 +399,22 @@
             (imp/R x)
             t)))]))
 
-  (define (t/split x t1 t2)
+  (define/contract (t/split x t1 t2)
+    (-> free-name? (-> >>? proof-state?) (-> >>? proof-state?)
+        (-> >>? proof-state?))
     (multicut
      (disj/L x)
      t1
      t2))
 
-  (define (t/pair t1 t2)
+  (define/contract (t/pair t1 t2)
+    (-> (-> >>? proof-state?) (-> >>? proof-state?)
+        (-> >>? proof-state?))
     (multicut
      conj/R
      t1
      t2))
 
   (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
-         [script (t/lam (x) (t/split x (t/pair (hyp x) T/R) (F/L x)))])
+         [script (t/lam (x) (t/split x (t/pair (hyp x) T/R) (orelse T/R (F/L x))))])
     (script goal)))
