@@ -1,22 +1,22 @@
 #lang racket/base
 
 (require
- (for-syntax
-  racket/base
-  syntax/parse)
- racket/contract
- racket/match
- "locally-nameless.rkt"
- "logical-framework.rkt")
+  (for-syntax
+   racket/base
+   syntax/parse)
+  racket/contract
+  racket/match
+  "locally-nameless.rkt"
+  "logical-framework.rkt")
 
 
 (module hyp-pattern racket/base
   (require
-   (for-syntax racket/base syntax/parse)
-   racket/list
-   racket/match
-   "logical-framework.rkt"
-   "locally-nameless.rkt")
+    (for-syntax racket/base syntax/parse)
+    racket/list
+    racket/match
+    "logical-framework.rkt"
+    "locally-nameless.rkt")
   (provide with-hyp unapply)
 
   (define (ctx-split Γ x)
@@ -48,7 +48,7 @@
               (λ (ex . exs)
                 (instantiate
                     (abstract (list x ...) e)
-                    (cons ex exs))))
+                  (cons ex exs))))
             f))])))
 
   (define-match-expander with-hyp
@@ -61,11 +61,11 @@
 
 (module sequent racket/base
   (require
-   (for-syntax racket/base syntax/parse)
-   "locally-nameless.rkt"
-   "logical-framework.rkt"
-   racket/match
-   racket/contract)
+    (for-syntax racket/base syntax/parse)
+    "locally-nameless.rkt"
+    "logical-framework.rkt"
+    racket/match
+    racket/contract)
   (provide >> subgoals >>? >>-ty proof-state proof-state? >:)
 
   ;; This is a wrapper around a goal / Π type which keeps a cache of names for assumptions,
@@ -93,7 +93,8 @@
   (struct proof-state (tele output)
     #:transparent)
 
-  (define (unpack-proof-state state)
+  (define/contract (unpack-proof-state state)
+    (-> proof-state? (values ctx? any/c))
     (match-define (proof-state tele output) state)
     (define xs (map (λ (g) (fresh)) tele))
     (values
@@ -168,22 +169,45 @@
   (make-Λ (abstract xs e)))
 
 
+(struct exn:fail:refinement exn:fail (goal)
+  #:transparent
+  #:extra-constructor-name make-exn:fail:refinement)
+
+(define (raise-refinement-error msg goal)
+  (raise (exn:fail:refinement msg (current-continuation-marks) goal)))
+
 (define-syntax (rule stx)
   (syntax-parse stx
     [(_ goal ((x:id subgoal) ...) extract)
      (syntax/loc stx
-       (match-lambda [goal (subgoals ((x subgoal) ...) extract)]))]))
+       (match-lambda
+         [goal
+          (subgoals ((x subgoal) ...) extract)]
+         [other-goal
+          (raise-refinement-error (format "Inapplicable: ~a" other-goal) other-goal)]))]))
 
 (define-syntax (define-rule stx)
+  (define (get-name h)
+    (syntax-parse h
+      [n:id #'n]
+      [(h* e ...) (get-name #'h*)]))
   (syntax-parse stx
     [(_ head goal definition:expr ... ((x:id subgoal) ...) extract)
-     (syntax/loc stx
-       (define head
-         (lambda (g)
-           (match g
-             [goal
-              definition ...
-              (subgoals ((x subgoal) ...) extract)]))))]))
+     (with-syntax ([rule-name (get-name #'head)])
+       (syntax/loc stx
+         (define head
+           (contract
+            (-> >>? proof-state?)
+            (procedure-rename
+             (lambda (g)
+               (match g
+                 [goal
+                  definition ...
+                  (subgoals ((x subgoal) ...) extract)]
+                 [other-goal
+                  (raise-refinement-error (format "Inapplicable: ~a" other-goal) other-goal)]))
+             'rule-name)
+            'rule-name 'caller))))]))
 
 
 (define tac/c
@@ -198,7 +222,10 @@
      (eta (cons X (>>-ty goal))))))
 
 ; Analogous to the THENL tactical
-(define (multicut t1 . ts)
+(define/contract (multicut t1 . ts)
+  (->* ((-> >>? proof-state?))
+       #:rest (listof (-> >>? proof-state?))
+       (-> >>? proof-state?))
   (define (multicut/aux subgoals tactics output subgoals-out env-out)
     (match* (subgoals tactics)
       [('() _)
@@ -236,7 +263,7 @@
     [(cons t ts)
      (λ (goal)
        (with-handlers
-         ([exn:fail? (λ (e) ((apply orelse (cons t ts)) goal))])
+           ([exn:fail? (λ (e) ((apply orelse (cons t ts)) goal))])
          (t1 goal)))]))
 
 
@@ -246,12 +273,12 @@
      (syntax/loc stx
        (instantiate
            (abstract (list x ...) e)
-           (list ex ...)))]
+         (list ex ...)))]
     [(_ (x:id ex:expr) e:expr)
      (syntax/loc stx
        (instantiate
            (abstract (list x) e)
-           (list ex)))]))
+         (list ex)))]))
 
 
 (module+ test
