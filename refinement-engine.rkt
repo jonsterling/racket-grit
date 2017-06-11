@@ -288,6 +288,13 @@
 
     (is-true ((p (Π () (prop)))) (TYPE)))
 
+  (define-rule (hyp x) (>> (and Γ (with-hyp Γ0 (x (Π () tyx)) Γ1)) goalTy)
+    (if (not (equal? goalTy tyx))
+        (error (format "Hypothesis mismatch: ~a vs ~a" tyx goalTy))
+        '())
+    ()
+    (Λ* Γ ($ x)))
+
   (define-rule conj/R (>> Γ (is-true (conj p q)))
     ([X (>> Γ (is-true p))]
      [Y (>> Γ (is-true q))])
