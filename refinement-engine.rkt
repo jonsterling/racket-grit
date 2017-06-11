@@ -419,7 +419,7 @@
     ()
     (Λ* Γ (nil)))
 
-  (define-syntax (t/lam stx)
+  (define-syntax (lam/t stx)
     (syntax-parse stx
       [(_ (x:id) t:expr)
        (syntax/loc stx
@@ -428,7 +428,7 @@
             (imp/R x)
             t)))]))
 
-  (define/contract (t/split x t1 t2)
+  (define/contract (split/t x t1 t2)
     (-> free-name? tac/c tac/c
         tac/c)
     (multicut
@@ -436,7 +436,7 @@
      t1
      t2))
 
-  (define/contract (t/pair t1 t2)
+  (define/contract (pair/t t1 t2)
     (-> tac/c tac/c
         tac/c)
     (multicut
@@ -457,10 +457,10 @@
     (λ ()
      (check-equal?
       (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
-             [script (t/lam (x)
+             [script (lam/t (x)
                             (multicut
                              probe
-                             (t/split x (t/pair (hyp x) T/R) (orelse T/R (F/L x)))))])
+                             (split/t x (pair/t (hyp x) T/R) (orelse T/R (F/L x)))))])
         (proof-extract (script goal)))
       (Λ () (lam (x)
                  (split ($ x)
