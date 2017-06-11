@@ -110,9 +110,9 @@
      (define sc (Λ-scope e))
      (define temps (fresh-print-names (scope-valence sc)))
      (define binder
-       (string-join (for/list ([x temps]) (format "~a" x)) ", "))
+       (string-join (for/list ([x temps]) (format "~a" x)) " "))
      (parameterize ([used-names (append temps (used-names))])
-       (fprintf port "[~a]~a" binder (scope-body sc)))))
+       (fprintf port "(Λ (~a) ~a)" binder (scope-body sc)))))
 
   #:property prop:bindings
   (binder
@@ -148,7 +148,7 @@
   #:transparent
   #:methods gen:custom-write
   ((define (write-proc ty port mode)
-     (fprintf port "TYPE")))
+     (fprintf port "(TYPE)")))
   #:property prop:bindings
   (binder
    (λ (ty frees i) ty)
@@ -162,8 +162,8 @@
   ((define (write-proc ap port mode)
      (define x ($-var ap))
      (define sp ($-spine ap))
-     (define spine (string-join (for/list ([x sp]) (format "~a" x)) ", "))
-     (fprintf port "~a[~a]" x spine)))
+     (define spine (string-join (for/list ([x sp]) (format "~a" x)) " "))
+     (fprintf port "($ ~a ~a)" x spine)))
 
   #:property prop:bindings
   (binder
