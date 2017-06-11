@@ -3,9 +3,11 @@
 (require
   (for-syntax
    racket/base
-   syntax/parse)
+   syntax/parse
+   syntax/srcloc)
   racket/contract
   racket/match
+  syntax/srcloc
   "locally-nameless.rkt"
   "logical-framework.rkt")
 
@@ -292,7 +294,24 @@
          (list ex)))]))
 
 
+(define/contract ((probe-at loc) goal)
+  (-> source-location? tac/c)
+  (printf "~a: ~a" (source-location->string loc) goal)
+  (subgoals
+   ((X goal))
+   (eta (cons X (>>-ty goal)))))
 
+(define-syntax (probe stx)
+  (syntax-parse stx
+    #:literals (probe)
+    [probe
+     (with-syntax ([source (source-location-source stx)]
+                   [line (source-location-line stx)]
+                   [col (source-location-column stx)]
+                   [pos (source-location-position stx)]
+                   [span (source-location-span stx)])
+       (syntax/loc stx
+         (probe-at (make-srcloc 'source 'line 'col 'pos 'span))))]))
 
 (module+ test
   (define-signature L
@@ -425,11 +444,25 @@
      t1
      t2))
 
-  (check-equal?
-   (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
-          [script (t/lam (x) (t/split x (t/pair (hyp x) T/R) (orelse T/R (F/L x))))])
-     (proof-extract (script goal)))
-   (Λ () (lam (x)
-              (split ($ x)
-                     (b) (pair ($ b) (nil))
-                     (b) (nil))))))
+  (require (only-in racket/port with-output-to-string))
+  (check-not-false
+   (regexp-match
+    ;; This is a hacky regexp that should match a source location, but changes to
+    ;; the printing of various structs or source locations may invalidate it.
+    ;; The idea is that a probe should have run while executing the test, but
+    ;; we can't predict the filename or the gensym used for printing the internal
+    ;; names of the >>.
+    #rx"refinement-engine\\.rkt:[0-9]+.[0-9]+: #\\(struct:>> \\([^)]+\\)"
+    (with-output-to-string
+    (λ ()
+     (check-equal?
+      (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
+             [script (t/lam (x)
+                            (multicut
+                             probe
+                             (t/split x (t/pair (hyp x) T/R) (orelse T/R (F/L x)))))])
+        (proof-extract (script goal)))
+      (Λ () (lam (x)
+                 (split ($ x)
+                        (b) (pair ($ b) (nil))
+                        (b) (nil))))))))))
