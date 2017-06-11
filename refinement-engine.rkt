@@ -381,12 +381,6 @@
      t1
      t2))
 
-  (let* ([goal
-          (>>
-           '()
-           (is-true
-            (imp
-             (disj (T) (F))
-             (conj (T) (T)))))]
+  (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
          [script (t/lam (x) (t/split x (t/pair (hyp x) T/R) (F/L x)))])
     (script goal)))
