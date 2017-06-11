@@ -381,8 +381,7 @@
      t1
      t2))
 
-  (let* ([y (fresh "y")]
-         [goal
+  (let* ([goal
           (>>
            '()
            (is-true
