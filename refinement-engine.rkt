@@ -10,6 +10,8 @@
   "logical-framework.rkt")
 
 
+(module+ test (require rackunit))
+
 (module hyp-pattern racket/base
   (require
     (for-syntax racket/base syntax/parse)
@@ -68,7 +70,8 @@
     "logical-framework.rkt"
     racket/match
     racket/contract)
-  (provide >> subgoals >>? >>-ty proof-state proof-state? >:)
+  (provide >> subgoals >>? >>-ty
+           proof-state proof-state? >: complete-proof? proof-extract)
 
   ;; This is a wrapper around a goal / Π type which keeps a cache of names for assumptions,
   ;; which can then be used when unpacking. The result of this is that we can have user-supplied
@@ -95,8 +98,16 @@
   (struct proof-state (tele output)
     #:transparent)
 
+  (define (complete-proof? st)
+    (and (proof-state? st)
+         (zero? (scope-valence (proof-state-output st)))))
+
+  (define/contract (proof-extract st)
+    (-> complete-proof? Λ?)
+    (instantiate (proof-state-output st) '()))
+
   (define/contract (unpack-proof-state state)
-    (-> proof-state? (values ctx? any/c))
+    (-> proof-state? (values ctx? Λ?))
     (match-define (proof-state tele output) state)
     (define xs (map (λ (g) (fresh)) tele))
     (values
@@ -199,7 +210,7 @@
        (syntax/loc stx
          (define head
            (contract
-            (-> >>? proof-state?)
+            tac/c
             (procedure-rename
              (lambda (g)
                (match g
@@ -211,10 +222,8 @@
              'rule-name)
             'rule-name 'caller))))]))
 
-
 (define tac/c
   (-> >>? proof-state?))
-
 
 (define/contract id-tac
   tac/c
@@ -225,9 +234,9 @@
 
 ; Analogous to the THENL tactical
 (define/contract (multicut t1 . ts)
-  (->* ((-> >>? proof-state?))
-       #:rest (listof (-> >>? proof-state?))
-       (-> >>? proof-state?))
+  (->* (tac/c)
+       #:rest (listof tac/c)
+       tac/c)
   (define (multicut/aux subgoals tactics output subgoals-out env-out)
     (match* (subgoals tactics)
       [('() _)
@@ -269,7 +278,6 @@
                           ((apply orelse (cons t ts)) goal))])
          (t1 goal)))]))
 
-
 (define-syntax (subst stx)
   (syntax-parse stx
     [(_ ((x:id ex:expr) ...) e:expr)
@@ -282,6 +290,8 @@
        (instantiate
            (abstract (list x) e)
          (list ex)))]))
+
+
 
 
 (module+ test
@@ -320,7 +330,7 @@
 
   (define-rule (hyp x) (>> (and Γ (with-hyp Γ0 (x (Π () tyx)) Γ1)) goalTy)
     (if (not (equal? goalTy tyx))
-        (error (format "Hypothesis mismatch: ~a vs ~a" tyx goalTy))
+        (raise-refinement-error (format "Hypothesis mismatch: ~a vs ~a" tyx goalTy) goalTy)
         '())
     ()
     (Λ* Γ ($ x)))
@@ -394,27 +404,32 @@
     (syntax-parse stx
       [(_ (x:id) t:expr)
        (syntax/loc stx
-         (let ([x (fresh)])
+         (let ([x (fresh (symbol->string 'x))])
            (multicut
             (imp/R x)
             t)))]))
 
   (define/contract (t/split x t1 t2)
-    (-> free-name? (-> >>? proof-state?) (-> >>? proof-state?)
-        (-> >>? proof-state?))
+    (-> free-name? tac/c tac/c
+        tac/c)
     (multicut
      (disj/L x)
      t1
      t2))
 
   (define/contract (t/pair t1 t2)
-    (-> (-> >>? proof-state?) (-> >>? proof-state?)
-        (-> >>? proof-state?))
+    (-> tac/c tac/c
+        tac/c)
     (multicut
      conj/R
      t1
      t2))
 
-  (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
-         [script (t/lam (x) (t/split x (t/pair (hyp x) T/R) (orelse T/R (F/L x))))])
-    (script goal)))
+  (check-equal?
+   (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
+          [script (t/lam (x) (t/split x (t/pair (hyp x) T/R) (orelse T/R (F/L x))))])
+     (proof-extract (script goal)))
+   (Λ () (lam (x)
+              (split ($ x)
+                     (b) (pair ($ b) (nil))
+                     (b) (nil))))))
