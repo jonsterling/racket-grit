@@ -191,13 +191,14 @@
 (define (raise-refinement-error msg goal)
   (raise (exn:fail:refinement msg (current-continuation-marks) goal)))
 
+; TODO: either delete this, or refactor define-rule to use it somehow to avoid duplication of logic
 (define-syntax (rule stx)
   (syntax-parse stx
     [(_ goal ((x:id subgoal) ...) extract)
      (syntax/loc stx
        (match-lambda
-         [goal
-          (subgoals ((x subgoal) ...) extract)]
+         [(and (>> Γ J) goal)
+          (subgoals ((x subgoal) ...) (Λ* Γ extract))]
          [other-goal
           (raise-refinement-error (format "Inapplicable: ~a" other-goal) other-goal)]))]))
 
@@ -214,11 +215,11 @@
            (contract
             tac/c
             (procedure-rename
-             (lambda (g)
+             (λ (g)
                (match g
-                 [goal
+                 [(and (>> Γ J) goal)
                   definition ...
-                  (subgoals ((x subgoal) ...) extract)]
+                  (subgoals ((x subgoal) ...) (Λ* Γ extract))]
                  [other-goal
                   (raise-refinement-error (format "Inapplicable: ~a" other-goal) other-goal)]))
              'rule-name)
@@ -352,12 +353,12 @@
         (raise-refinement-error (format "Hypothesis mismatch: ~a vs ~a" tyx goalTy) goalTy)
         '())
     ()
-    (Λ* Γ ($ x)))
+    ($ x))
 
   (define-rule conj/R (>> Γ (is-true (conj p q)))
     ([X (>> Γ (is-true p))]
      [Y (>> Γ (is-true q))])
-    (Λ* Γ (pair ($* X Γ) ($* Y Γ))))
+    (pair ($* X Γ) ($* Y Γ)))
 
   (define-rule (conj/L x x0 x1)
     (>>
@@ -377,11 +378,11 @@
 
   (define-rule disj/R/1 (>> Γ (is-true (disj p q)))
     ([X (>> Γ (is-true p))])
-    (Λ* Γ (inl ($* X Γ))))
+    (inl ($* X Γ)))
 
   (define-rule disj/R/2 (>> Γ (is-true (disj p q)))
     ([X (>> Γ (is-true q))])
-    (Λ* Γ (inr ($* X Γ))))
+    (inr ($* X Γ)))
 
   (define-rule (disj/L x)
     (>>
@@ -399,25 +400,25 @@
        (Γ1 (inr ($ y)))))
     ([L (>> (Γ/p x) (is-true (r (inl ($ x)))))]
      [R (>> (Γ/q x) (is-true (r (inr ($ x)))))])
-    (Λ* Γ (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr)))))
+    (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))
 
 
   (define-rule (imp/R x) (>> Γ (is-true (imp p q)))
     (define (Γ/p x)
       (ctx-set Γ x (Π () (is-true p))))
     ([X (>> (Γ/p x) (is-true q))])
-    (Λ* Γ (lam (x) ($* X (Γ/p x)))))
+    (lam (x) ($* X (Γ/p x))))
 
   (define-rule T/R (>> Γ (is-true (T)))
     ()
-    (Λ* Γ (nil)))
+    (nil))
 
   (define-rule (F/L x)
     (>>
      (and Γ (with-hyp Γ0 (x (Π () (is-true (F)))) Γ1))
      (is-true p))
     ()
-    (Λ* Γ (nil)))
+    (nil))
 
   (define-syntax (lam/t stx)
     (syntax-parse stx
