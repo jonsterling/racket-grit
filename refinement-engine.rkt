@@ -276,9 +276,10 @@
     ['() t1]
     [(cons t ts)
      (λ (goal)
-       (with-handlers ([exn:fail:refinement?
-                        (λ (e)
-                          ((apply orelse (cons t ts)) goal))])
+       (with-handlers
+           ([exn:fail:refinement?
+             (λ (e)
+               ((apply orelse (cons t ts)) goal))])
          (t1 goal)))]))
 
 (define-syntax (subst stx)
@@ -306,11 +307,12 @@
   (syntax-parse stx
     #:literals (probe)
     [probe
-     (with-syntax ([source (source-location-source stx)]
-                   [line (source-location-line stx)]
-                   [col (source-location-column stx)]
-                   [pos (source-location-position stx)]
-                   [span (source-location-span stx)])
+     (with-syntax
+         ([source (source-location-source stx)]
+          [line (source-location-line stx)]
+          [col (source-location-column stx)]
+          [pos (source-location-position stx)]
+          [span (source-location-span stx)])
        (syntax/loc stx
          (probe-at (make-srcloc 'source 'line 'col 'pos 'span))))]))
 
@@ -483,15 +485,15 @@
     ;; names of the >>.
     #rx"refinement-engine\\.rkt:[0-9]+.[0-9]+: #\\(struct:>> \\([^)]+\\)"
     (with-output-to-string
-    (λ ()
-     (check-equal?
-      (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
-             [script (lam/t (x)
-                            (multicut
-                             probe
-                             (split/t x (pair/t (hyp x) T/R) (orelse T/R (F/L x)))))])
-        (proof-extract (script goal)))
-      (Λ () (lam (x)
-                 (split ($ x)
-                        (b) (pair ($ b) (nil))
-                        (b) (nil))))))))))
+     (λ ()
+       (check-equal?
+        (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
+               [script (lam/t (x)
+                              (multicut
+                               probe
+                               (split/t x (pair/t (hyp x) T/R) (orelse T/R (F/L x)))))])
+          (proof-extract (script goal)))
+        (Λ () (lam (x)
+                   (split ($ x)
+                          (b) (pair ($ b) (nil))
+                          (b) (nil))))))))))
