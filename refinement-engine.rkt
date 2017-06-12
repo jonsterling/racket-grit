@@ -378,14 +378,18 @@
      ([p (Π () (prop))])
      (TYPE)))
 
-  (define-rule (hyp x) (>> (and Γ (with-hyp Γ0 (x (Π () tyx)) Γ1)) goalTy)
+  (define-rule (hyp x)
+    (>> (and Γ (with-hyp Γ0 (x (Π () tyx)) Γ1)) goalTy)
     (if (not (equal? goalTy tyx))
-        (raise-refinement-error (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy) goalTy)
+        (raise-refinement-error
+         (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy)
+         goalTy)
         '())
     ()
     ($ x))
 
-  (define-rule conj/R (>> Γ (is-true (conj p q)))
+  (define-rule conj/R
+    (>> Γ (is-true (conj p q)))
     ([X (>> Γ (is-true p))]
      [Y (>> Γ (is-true q))])
     (pair ($* X Γ) ($* Y Γ)))
@@ -406,11 +410,13 @@
           [x1 (snd ($ x))])
          ($* X Γ/pq))))
 
-  (define-rule disj/R/1 (>> Γ (is-true (disj p q)))
+  (define-rule disj/R/1
+    (>> Γ (is-true (disj p q)))
     ([X (>> Γ (is-true p))])
     (inl ($* X Γ)))
 
-  (define-rule disj/R/2 (>> Γ (is-true (disj p q)))
+  (define-rule disj/R/2
+    (>> Γ (is-true (disj p q)))
     ([X (>> Γ (is-true q))])
     (inr ($* X Γ)))
 
@@ -418,22 +424,15 @@
     (>>
      (and Γ (with-hyp Γ0 (x (Π () (is-true (disj p q)))) Γ1))
      (is-true (unapply r x)))
-    (define (Γ/p y)
-      (append
-       Γ0
-       `((,y . ,(Π () (is-true p))))
-       (Γ1 (inl ($ y)))))
-    (define (Γ/q y)
-      (append
-       Γ0
-       `((,y . ,(Π () (is-true q))))
-       (Γ1 (inr ($ y)))))
+    (define (Γ/p y) (append Γ0 `((,y . ,(Π () (is-true p)))) (Γ1 (inl ($ y)))))
+    (define (Γ/q y) (append Γ0 `((,y . ,(Π () (is-true q)))) (Γ1 (inr ($ y)))))
     ([L (>> (Γ/p x) (is-true (r (inl ($ x)))))]
      [R (>> (Γ/q x) (is-true (r (inr ($ x)))))])
     (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))
 
 
-  (define-rule (imp/R x) (>> Γ (is-true (imp p q)))
+  (define-rule (imp/R x)
+    (>> Γ (is-true (imp p q)))
     (define (Γ/p x)
       (ctx-set Γ x (Π () (is-true p))))
     ([X (>> (Γ/p x) (is-true q))])
@@ -488,12 +487,14 @@
      (λ ()
        (check-equal?
         (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
-               [script (lam/t (x)
-                              (multicut
-                               probe
-                               (split/t x (pair/t (hyp x) T/R) (orelse T/R (F/L x)))))])
+               [script
+                (lam/t (x)
+                       (multicut
+                        probe
+                        (split/t x (pair/t (hyp x) T/R) (orelse T/R (F/L x)))))])
           (proof-extract (script goal)))
-        (Λ () (lam (x)
-                   (split ($ x)
-                          (b) (pair ($ b) (nil))
-                          (b) (nil))))))))))
+        (Λ ()
+           (lam (x)
+                (split ($ x)
+                       (b) (pair ($ b) (nil))
+                       (b) (nil))))))))))
