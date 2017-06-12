@@ -380,7 +380,7 @@
 
   (define-rule (hyp x) (>> (and Γ (with-hyp Γ0 (x (Π () tyx)) Γ1)) goalTy)
     (if (not (equal? goalTy tyx))
-        (raise-refinement-error (format "Hypothesis mismatch: ~a vs ~a" tyx goalTy) goalTy)
+        (raise-refinement-error (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy) goalTy)
         '())
     ()
     ($ x))
