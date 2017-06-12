@@ -366,7 +366,7 @@
     (define Γ/pq
       (append
        Γ0
-       (list (cons x0 (Π () (is-true p))) (cons x1 (Π () (is-true q))))
+       `((,x0 . ,(Π () (is-true p))) (,x1 . ,(Π () (is-true q))))
        (Γ1 (pair ($ x0) ($ x1)))))
     ([X (>> Γ/pq (is-true (r (pair ($ x0) ($ x1)))))])
     (Λ* Γ
@@ -390,12 +390,12 @@
     (define (Γ/p y)
       (append
        Γ0
-       (list (cons y (Π () (is-true p))))
+       `((,y . ,(Π () (is-true p))))
        (Γ1 (inl ($ y)))))
     (define (Γ/q y)
       (append
        Γ0
-       (list (cons y (Π () (is-true q))))
+       `((,y . ,(Π () (is-true q))))
        (Γ1 (inr ($ y)))))
     ([L (>> (Γ/p x) (is-true (r (inl ($ x)))))]
      [R (>> (Γ/q x) (is-true (r (inr ($ x)))))])
