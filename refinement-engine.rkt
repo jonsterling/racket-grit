@@ -317,36 +317,64 @@
 (module+ test
   (define-signature L
     (prop () (TYPE))
+
     (tm () (TYPE))
-    (conj ([p (Π () (prop))]
-           [q (Π () (prop))])
-          (prop))
-    (disj ([p (Π () (prop))]
-           [q (Π () (prop))])
-          (prop))
-    (imp ([p (Π () (prop))]
-          [q (Π () (prop))])
-         (prop))
+
+    (conj
+     ([p (Π () (prop))]
+      [q (Π () (prop))])
+     (prop))
+
+    (disj
+     ([p (Π () (prop))]
+      [q (Π () (prop))])
+     (prop))
+
+    (imp
+     ([p (Π () (prop))]
+      [q (Π () (prop))])
+     (prop))
+
     (T () (prop))
+
     (F () (prop))
+
     (nil () (tm))
-    (pair ([m (Π () (tm))]
-           [n (Π () (tm))])
-          (tm))
-    (fst ([m (Π () (tm))])
-         (tm))
-    (snd ([m (Π () (tm))])
-         (tm))
-    (inl ([m (Π () (tm))]) (tm))
-    (inr ([m (Π () (tm))]) (tm))
-    (split ([m (Π () (tm))]
-            [l (Π ([x (Π () (tm))]) (tm))]
-            [r (Π ([y (Π () (tm))]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
-           (tm))
 
-    (lam ([m (Π ([x (Π () (tm))]) (tm))]) (tm))
+    (pair
+     ([m (Π () (tm))]
+      [n (Π () (tm))])
+     (tm))
 
-    (is-true ([p (Π () (prop))]) (TYPE)))
+    (fst
+     ([m (Π () (tm))])
+     (tm))
+
+    (snd
+     ([m (Π () (tm))])
+     (tm))
+
+    (inl
+     ([m (Π () (tm))])
+     (tm))
+
+    (inr
+     ([m (Π () (tm))])
+     (tm))
+
+    (split
+     ([m (Π () (tm))]
+      [l (Π ([x (Π () (tm))]) (tm))]
+      [r (Π ([y (Π () (tm))]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
+     (tm))
+
+    (lam
+     ([m (Π ([x (Π () (tm))]) (tm))])
+     (tm))
+
+    (is-true
+     ([p (Π () (prop))])
+     (TYPE)))
 
   (define-rule (hyp x) (>> (and Γ (with-hyp Γ0 (x (Π () tyx)) Γ1)) goalTy)
     (if (not (equal? goalTy tyx))
