@@ -283,12 +283,12 @@
 
 (define-syntax (subst stx)
   (syntax-parse stx
-    [(_ ((x:id ex:expr) ...) e:expr)
+    [(_ ([x:id ex:expr] ...) e:expr)
      (syntax/loc stx
        (instantiate
            (abstract (list x ...) e)
          (list ex ...)))]
-    [(_ (x:id ex:expr) e:expr)
+    [(_ [x:id ex:expr] e:expr)
      (syntax/loc stx
        (instantiate
            (abstract (list x) e)
@@ -299,8 +299,8 @@
   (-> source-location? tac/c)
   (printf "~a: ~a" (source-location->string loc) goal)
   (subgoals
-   ((X goal))
-   (eta (cons X (>>-ty goal)))))
+   ([X goal])
+   (eta `(,X . ,(>>-ty goal)))))
 
 (define-syntax (probe stx)
   (syntax-parse stx
@@ -318,35 +318,35 @@
   (define-signature L
     (prop () (TYPE))
     (tm () (TYPE))
-    (conj ((p (Π () (prop)))
-           (q (Π () (prop))))
+    (conj ([p (Π () (prop))]
+           [q (Π () (prop))])
           (prop))
-    (disj ((p (Π () (prop)))
-           (q (Π () (prop))))
+    (disj ([p (Π () (prop))]
+           [q (Π () (prop))])
           (prop))
-    (imp ((p (Π () (prop)))
-          (q (Π () (prop))))
+    (imp ([p (Π () (prop))]
+          [q (Π () (prop))])
          (prop))
     (T () (prop))
     (F () (prop))
     (nil () (tm))
-    (pair ((m (Π () (tm)))
-           (n (Π () (tm))))
+    (pair ([m (Π () (tm))]
+           [n (Π () (tm))])
           (tm))
-    (fst ((m (Π () (tm))))
+    (fst ([m (Π () (tm))])
          (tm))
-    (snd ((m (Π () (tm))))
+    (snd ([m (Π () (tm))])
          (tm))
-    (inl ((m (Π () (tm)))) (tm))
-    (inr ((m (Π () (tm)))) (tm))
-    (split ((m (Π () (tm)))
-            (l (Π ((x (Π () (tm)))) (tm)))
-            (r (Π ((y (Π () (tm)))) (tm)))) ; for some reason, I can't use 'x' here. something about duplicate attributes
+    (inl ([m (Π () (tm))]) (tm))
+    (inr ([m (Π () (tm))]) (tm))
+    (split ([m (Π () (tm))]
+            [l (Π ([x (Π () (tm))]) (tm))]
+            [r (Π ([y (Π () (tm))]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
            (tm))
 
-    (lam ((m (Π ((x (Π () (tm)))) (tm)))) (tm))
+    (lam ([m (Π ([x (Π () (tm))]) (tm))]) (tm))
 
-    (is-true ((p (Π () (prop)))) (TYPE)))
+    (is-true ([p (Π () (prop))]) (TYPE)))
 
   (define-rule (hyp x) (>> (and Γ (with-hyp Γ0 (x (Π () tyx)) Γ1)) goalTy)
     (if (not (equal? goalTy tyx))
@@ -372,8 +372,8 @@
     ([X (>> Γ/pq (is-true (r (pair ($ x0) ($ x1)))))])
     (Λ* Γ
         (subst
-         ((x0 (fst ($ x)))
-          (x1 (snd ($ x))))
+         ([x0 (fst ($ x))]
+          [x1 (snd ($ x))])
          ($* X Γ/pq))))
 
   (define-rule disj/R/1 (>> Γ (is-true (disj p q)))
