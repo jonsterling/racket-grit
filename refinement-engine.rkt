@@ -15,7 +15,10 @@
 (module+ test (require rackunit))
 (provide
  subst
- unapply)
+ unapply
+ with-hyp
+ define-rule
+ >> $* Λ*)
 
 (module hyp-pattern racket/base
   (require
