@@ -13,6 +13,9 @@
 
 
 (module+ test (require rackunit))
+(provide
+ subst
+ unapply)
 
 (module hyp-pattern racket/base
   (require
