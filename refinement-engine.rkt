@@ -18,6 +18,9 @@
  unapply
  with-hyp
  define-rule
+ probe
+ multicut
+ id-tac
  >> $* Λ*)
 
 (module hyp-pattern racket/base
@@ -430,8 +433,8 @@
     (>>
      (and Γ (with-hyp Γ0 (x (=> () (is-true (disj p q)))) Γ1))
      (is-true (unapply r x)))
-    (define (Γ/p y) (append Γ0 `((,y . ,(=> () (is-true p)))) (Γ1 (inl ($ y)))))
-    (define (Γ/q y) (append Γ0 `((,y . ,(=> () (is-true q)))) (Γ1 (inr ($ y)))))
+    (define (Γ/p y) (append Γ0 `((,y . ,(=> () (is-true p)))) (Γ1 (Λ () (inl ($ y))))))
+    (define (Γ/q y) (append Γ0 `((,y . ,(=> () (is-true q)))) (Γ1 (Λ  () (inr ($ y))))))
     ([L (>> (Γ/p x) (is-true (r (inl ($ x)))))]
      [R (>> (Γ/q x) (is-true (r (inr ($ x)))))])
     (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))
@@ -479,6 +482,14 @@
      conj/R
      t1
      t2))
+
+  (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
+               [script
+                (lam/t (x)
+                       (multicut
+                        probe
+                        (split/t x (pair/t (hyp x) T/R) (orelse T/R (F/L x)))))])
+          (proof-extract (script goal)))
 
   (require (only-in racket/port with-output-to-string))
   (check-not-false
