@@ -412,8 +412,8 @@
     ([X (>> Γ/pq (is-true (r (pair ($ x0) ($ x1)))))])
     (Λ* Γ
         (subst
-         ([x0 (fst ($ x))]
-          [x1 (snd ($ x))])
+         ([x0 (Λ () (fst ($ x)))]
+          [x1 (Λ () (snd ($ x)))])
          ($* X Γ/pq))))
 
   (define-rule disj/R/1
