@@ -99,6 +99,8 @@
      (cut e (y) (subst ([x (Λ () (snd ($ y)))]) π))]
     [(cut (ap e1 e2) (x) π)
      (cut e1 (y) (subst ([x (Λ () (ap ($ y) e2))]) π))]
+    [(cut (bool-if e1 e2 e3) (x) π)
+     (cut e1 (y) (subst ([x (Λ () (bool-if ($ y) e2 e3))]) π))]
     [_ null]))
 
 (define (final? C)
@@ -114,12 +116,9 @@
     [_ #f]))
 
 (define (steps C)
-  (match C
-    [final? C]
-    [_
-     (match (step C)
-       ['() C]
-       [D (steps D)])]))
+  (match (step C)
+    ['() C]
+    [D (steps D)]))
 
 (define (eval e)
   (match (steps (cut e (x) ($ x)))
@@ -165,11 +164,21 @@
   ()
   (ff))
 
-      
-(define-rule dfun/R
-  (>> Γ (is-inh (dfun A (x) Bx)))
-  (define (ΓA x) (append Γ `((,x . (=> () (is-inh ,A))))))
-  ([X (>> (ΓA x) (is-inh Bx))]
+(define-rule (bool/L z)
+  (>> (and Γ (with-hyp Γ0 (z (=> () (is-inh (bool)))) Γ1))
+      (is-inh (unapply C z)))
+  (define Γ/tt (append Γ0 `((,z . ,(=> () (is-inh (bool))))) (Γ1 (Λ () (tt)))))
+  (define Γ/ff (append Γ0 `((,z . ,(=> () (is-inh (bool))))) (Γ1 (Λ () (ff)))))
+  ([X (>> Γ/tt (is-inh (C (Λ () (tt)))))]
+   [Y (>> Γ/ff (is-inh (C (Λ () (ff)))))]
+   [Z (>> Γ (eq-ty (C z) (C z)))])
+  (bool-if ($ z) ($* X Γ/tt) ($* X Γ/ff)))
+
+
+(define-rule (dfun/R x)
+  (>> Γ (is-inh (dfun A (y) By)))
+  (define (ΓA x) (append Γ `((,x . ,(=> () (is-inh A))))))
+  ([X (>> (ΓA x) (is-inh (subst ([y x]) By)))]
    [Y (>> Γ (eq-ty A A))])
   (lam (x) ($* X (ΓA x))))
 
@@ -177,7 +186,7 @@
   (>> Γ (is-inh (dsum A (x) Bx)))
   ([X (>> Γ (is-inh A))]
    [Y (>> Γ (is-inh (subst ([x (Λ () ($* X Γ))]) Bx)))]
-   [Z (>> (append Γ `((,x . ,(is-inh A)))) (eq-ty Bx Bx))])
+   [Z (>> (append Γ `((,x . ,(=> () (is-inh A))))) (eq-ty Bx Bx))])
   (pair ($* X Γ) ($* Y Γ)))
 
 
@@ -198,7 +207,7 @@
 
 (define-rule (lam/eq x)
   (>> Γ (is-eq (lam (x1) e1x1) (lam (x2) e2x2) (dfun A (x3) Bx3)))
-  (define (ΓA x) (append Γ `((,x . ,(is-inh A)))))
+  (define (ΓA x) (append Γ `((,x . ,(=> () (is-inh A))))))
   ([X (>> (ΓA x)
           (is-eq
            (subst ([x1 x]) e1x1)
@@ -211,8 +220,53 @@
   (>> Γ (is-eq (pair e10 e20) (pair e11 e21) (dsum A (x) Bx)))
   ([X (>> Γ (is-eq e10 e11 A))]
    [Y (>> Γ (is-eq e20 e21 (subst ([x (Λ () e10)]) Bx)))]
-   [Z (>> (append Γ `((,x . ,(is-inh A)))) (eq-ty Bx Bx))])
+   [Z (>> (append Γ `((,x . ,(=> () (is-inh A))))) (eq-ty Bx Bx))])
   (ax))
+
+(define-rule eq/direct-computation
+  (>> Γ (is-eq e1 e2 A))
+  ([X (>> Γ (is-eq (eval e1) (eval e2) (eval A)))])
+  ($* X Γ))
+
+(define-rule inh/direct-computation
+  (>> Γ (is-inh A))
+  ([X (>> Γ (is-inh (eval A)))])
+  ($* X Γ))
+
+(define-rule (hyp x)
+  (>> (and Γ (with-hyp Γ0 (x (=> () tyx)) Γ1)) goalTy)
+  (if (not (equal? goalTy tyx))
+      (raise-refinement-error
+       (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy)
+       goalTy)
+      '())
+  ()
+  ($ x))
+
+
+(module+ test
+  (define x (fresh "x"))
+  
+  (define my-script
+    (multicut
+     (dfun/R x)
+     (multicut
+      (bool/L x)
+      (multicut
+       inh/direct-computation
+       unit/R)
+      (multicut
+       inh/direct-computation
+       (hyp x))
+      ; below, I need a structural equality rule for types formed using bool-if;
+      ; probably, at this point we should switch modes to a universe membership
+      ; judgment, and then use the (un-written) structural equality rule for bool-if.
+      probe)
+     bool/F))
+  
+  (define goal
+    (>> null (is-inh (dfun (bool) (x) (bool-if ($ x) (unit) (bool))))))
+  (my-script goal))
 
 ; TODO: define left rules
 ; TODO: define member equality rules

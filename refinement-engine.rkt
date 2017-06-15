@@ -21,7 +21,8 @@
  probe
  multicut
  id-tac
- >> $* Λ*)
+ >> $* Λ*
+ raise-refinement-error)
 
 (module hyp-pattern racket/base
   (require
