@@ -34,7 +34,7 @@
   (provide with-hyp unapply)
 
   (define/contract (ctx-split Γ x)
-    (-> ctx? free-name? (values ctx? =>? (-> rtype? ctx?)))
+    (-> ctx? free-name? (values ctx? =>? (-> Λ? ctx?)))
     (let* ([p (λ (cell) (not (equal? x (car cell))))]
            [Γ0 (takef Γ p)]
            [Γ1 (cdr (dropf Γ p))])
