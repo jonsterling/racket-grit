@@ -19,10 +19,10 @@
 
 
 (provide
- TYPE Π Λ $
- Π? Λ? $? rtype? ctx?
+ TYPE => Λ $
+ =>? Λ? $? rtype? ctx?
  define-signature telescope
- make-Π Π-domain Π-codomain
+ make-=> =>-domain =>-codomain
  make-Λ
  make-$
  ctx-set ctx-ref ctx-map
@@ -45,13 +45,13 @@
   (require rackunit))
 
 
-(struct Π (domain codomain)
+(struct => (domain codomain)
   #:omit-define-syntaxes
-  #:extra-constructor-name make-Π
+  #:extra-constructor-name make-=>
   #:methods gen:custom-write
   ((define (write-proc pi port mode)
-     (define tl (Π-domain pi))
-     (define sc (Π-codomain pi))
+     (define tl (=>-domain pi))
+     (define sc (=>-codomain pi))
      (match-define (scope vl body) sc)
      (define temps (fresh-print-names vl))
      (fprintf port "{")
@@ -63,44 +63,44 @@
   #:property prop:bindings
   (binder
    (λ (pi frees i)
-     (define tl (Π-domain pi))
-     (define sc (Π-codomain pi))
+     (define tl (=>-domain pi))
+     (define sc (=>-codomain pi))
      (match-define (binder abs-tl _) bindings/telescope)
      (match-define (binder abs-sc _) (bindings-accessor sc))
-     (make-Π (abs-tl tl frees i) (abs-sc sc frees i)))
+     (make-=> (abs-tl tl frees i) (abs-sc sc frees i)))
    (λ (pi i new-exprs)
-     (define tl (Π-domain pi))
-     (define sc (Π-codomain pi))
+     (define tl (=>-domain pi))
+     (define sc (=>-codomain pi))
      (match-define (binder _ inst-tl) bindings/telescope)
      (match-define (binder _ inst-sc) (bindings-accessor sc))
-     (make-Π (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
+     (make-=> (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
 
   #:methods gen:equal+hash
   ((define (equal-proc pi1 pi2 rec-equal?)
      (and
-      (rec-equal? (Π-domain pi1) (Π-domain pi2))
-      (rec-equal? (Π-codomain pi1) (Π-codomain pi2))))
+      (rec-equal? (=>-domain pi1) (=>-domain pi2))
+      (rec-equal? (=>-codomain pi1) (=>-codomain pi2))))
    (define (hash-proc pi rec-hash)
      (fxxor
-      (rec-hash (Π-domain pi))
-      (rec-hash (Π-codomain pi))))
+      (rec-hash (=>-domain pi))
+      (rec-hash (=>-codomain pi))))
    (define (hash2-proc pi rec-hash2)
      (fxxor
-      (rec-hash2 (Π-domain pi))
-      (rec-hash2 (Π-codomain pi))))))
+      (rec-hash2 (=>-domain pi))
+      (rec-hash2 (=>-codomain pi))))))
 
-(define-match-expander Π
+(define-match-expander =>
   (λ (stx)
     (syntax-parse stx
       [(_ ((x:id e:expr) ...) cod:expr)
        (syntax/loc stx
-         (? Π? (and (app Π-domain (telescope (x e) ...))
-                    (app Π-codomain (in-scope (x ...) cod)))))]))
+         (? =>? (and (app =>-domain (telescope (x e) ...))
+                    (app =>-codomain (in-scope (x ...) cod)))))]))
   (λ (stx)
     (syntax-parse stx
       [(_ ((x:id e:expr) ...) cod:expr)
        (syntax/loc stx
-         (make-Π (telescope (x e) ...) (in-scope (x ...) cod)))])))
+         (make-=> (telescope (x e) ...) (in-scope (x ...) cod)))])))
 
 (struct Λ (scope)
   #:omit-define-syntaxes
@@ -218,11 +218,11 @@
 
 (define-syntax (one-pattern-lhs stx)
   (syntax-parse stx
-    #:literals (Π)
-    [(_ (x:id (Π () e)))
+    #:literals (=>)
+    [(_ (x:id (=> () e)))
      (syntax/loc stx
        (x))]
-    [(_ (x:id (Π (y1 y ...) e)) elem ...)
+    [(_ (x:id (=> (y1 y ...) e)) elem ...)
      (syntax/loc stx
        ((y1 y ...) x))]))
 
@@ -251,13 +251,13 @@
   (define-syntax-class signature-elem
     (pattern (name:id ((arg:id type:Pi) ...) result)))
   (define-syntax-class Pi
-    #:literals (Π)
+    #:literals (=>)
     ;; TODO: Add another pattern here to add implicit Pi when not used directly?
     (pattern
-     (Π () result)
+     (=> () result)
      #:attr (arg 1) '())
     (pattern
-     (Π ((arg:id type) ...) result))))
+     (=> ((arg:id type) ...) result))))
 
 
 
@@ -293,7 +293,7 @@
     [(_ sig-name c:signature-elem ...)
      #'(begin
          (define sig-name
-           (signature (c.name (Π ((c.arg c.type) ...) c.result)) ...))
+           (signature (c.name (=> ((c.arg c.type) ...) c.result)) ...))
          (define-signature-helper c.name ((c.arg c.type) ...)) ...)]))
 
 (define (snoc xs x)
@@ -305,7 +305,7 @@
 (define rtype?
   (or/c TYPE? $?))
 
-(define type? Π?)
+(define type? =>?)
 
 (define tele?
   (listof scope?))
@@ -390,7 +390,7 @@
 (define/contract (chk-type ctx ty)
   (-> ctx? type? any/c)
   (match ty
-    [(? Π? (and (app Π-domain tele) (app Π-codomain cod)))
+    [(? =>? (and (app =>-domain tele) (app =>-codomain cod)))
      (match (chk-tele ctx tele)
        [(cons ctx xs)
         (chk-rtype ctx (instantiate cod xs))])]))
@@ -440,7 +440,7 @@
         (ty (ctx ntm) (wf-type? ctx)))
        (result any/c))
   (match* (ntm ty)
-    [((? Λ? (app Λ-scope sc)) (? Π? (and (app Π-domain tele) (app Π-codomain cod))))
+    [((? Λ? (app Λ-scope sc)) (? =>? (and (app =>-domain tele) (app =>-codomain cod))))
      (match (chk-tele ctx tele)
        [(cons ctx xs)
         (chk-rtm ctx (instantiate sc xs) (instantiate cod xs))])]))
@@ -462,7 +462,7 @@
   (match rtm
     [(? $? (and (app $-var x) (app $-spine spine)))
      (match (ctx-ref ctx x)
-       [(? Π? (and (app Π-domain tele) (app Π-codomain cod)))
+       [(? =>? (and (app =>-domain tele) (app =>-codomain cod)))
         (chk-spine ctx tele spine)
         (instantiate cod spine)])]))
 
@@ -485,8 +485,8 @@
 (module+ test
   (let ([x (fresh "hello")])
     (check-equal?
-     (Π ((a x) (b ($ a))) ($ b))
-     (Π ((b x) (c ($ b))) ($ c))))
+     (=> ((a x) (b ($ a))) ($ b))
+     (=> ((b x) (c ($ b))) ($ c))))
 
   (check-equal?
    (Λ (n m) n)
@@ -495,11 +495,11 @@
   (define-signature num-sig
     (nat () (TYPE))
     (ze () (nat))
-    (su ((x (Π () (nat))))
+    (su ((x (=> () (nat))))
         (nat))
-    (ifze ((n (Π () (nat)))
-           (z (Π () (nat)))
-           (s (Π ((x (Π () (nat)))) (nat))))
+    (ifze ((n (=> () (nat)))
+           (z (=> () (nat)))
+           (s (=> ((x (=> () (nat)))) (nat))))
           (nat)))
 
   (chk-ctx? num-sig)

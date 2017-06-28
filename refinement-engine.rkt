@@ -13,6 +13,16 @@
 
 
 (module+ test (require rackunit))
+(provide
+ subst
+ unapply
+ with-hyp
+ define-rule
+ probe
+ multicut
+ id-tac
+ >> $* Λ*
+ raise-refinement-error)
 
 (module hyp-pattern racket/base
   (require
@@ -25,7 +35,7 @@
   (provide with-hyp unapply)
 
   (define/contract (ctx-split Γ x)
-    (-> ctx? free-name? (values ctx? Π? (-> rtype? ctx?)))
+    (-> ctx? free-name? (values ctx? =>? (-> Λ? ctx?)))
     (let* ([p (λ (cell) (not (equal? x (car cell))))]
            [Γ0 (takef Γ p)]
            [Γ1 (cdr (dropf Γ p))])
@@ -75,10 +85,10 @@
   (provide >> subgoals >>? >>-ty
            proof-state proof-state? >: complete-proof? proof-extract)
 
-  ;; This is a wrapper around a goal / Π type which keeps a cache of names for assumptions,
+  ;; This is a wrapper around a goal / => type which keeps a cache of names for assumptions,
   ;; which can then be used when unpacking. The result of this is that we can have user-supplied
   ;; names in tactic scripts, even though naively that doesn't make scope-sense when thinking
-  ;; of goals as Π types.
+  ;; of goals as => types.
   (struct >> (names ty)
     #:omit-define-syntaxes
     #:extra-constructor-name make->>
@@ -131,13 +141,13 @@
   (define/contract (pack-goal ctx rty)
     (-> ctx? rtype? >>?)
     (let ([xs (map car ctx)])
-      (make->> xs (make-Π (ctx->tele ctx) (abstract xs rty)))))
+      (make->> xs (make-=> (ctx->tele ctx) (abstract xs rty)))))
 
   (define/contract (unpack-goal goal)
     (-> >>? (values ctx? rtype?))
     (define xs (>>-names goal))
     (define ty (>>-ty goal))
-    (values (tele->ctx xs (Π-domain ty)) (instantiate (Π-codomain ty) xs)))
+    (values (tele->ctx xs (=>-domain ty)) (instantiate (=>-codomain ty) xs)))
 
   (define-match-expander >>
     (λ (stx)
@@ -166,9 +176,9 @@
 (require 'sequent)
 
 (define/contract (eta cell)
-  (-> (cons/c free-name? Π?) Λ?)
+  (-> (cons/c free-name? =>?) Λ?)
   (match cell
-    [(cons x (and (app Π-domain tele) (app Π-codomain cod)))
+    [(cons x (and (app =>-domain tele) (app =>-codomain cod)))
      (let* ([xs (map (λ (sc) (fresh)) tele)]
             [ctx (tele->ctx xs tele)])
        (make-Λ
@@ -323,18 +333,18 @@
     (tm () (TYPE))
 
     (conj
-     ([p (Π () (prop))]
-      [q (Π () (prop))])
+     ([p (=> () (prop))]
+      [q (=> () (prop))])
      (prop))
 
     (disj
-     ([p (Π () (prop))]
-      [q (Π () (prop))])
+     ([p (=> () (prop))]
+      [q (=> () (prop))])
      (prop))
 
     (imp
-     ([p (Π () (prop))]
-      [q (Π () (prop))])
+     ([p (=> () (prop))]
+      [q (=> () (prop))])
      (prop))
 
     (T () (prop))
@@ -344,42 +354,42 @@
     (nil () (tm))
 
     (pair
-     ([m (Π () (tm))]
-      [n (Π () (tm))])
+     ([m (=> () (tm))]
+      [n (=> () (tm))])
      (tm))
 
     (fst
-     ([m (Π () (tm))])
+     ([m (=> () (tm))])
      (tm))
 
     (snd
-     ([m (Π () (tm))])
+     ([m (=> () (tm))])
      (tm))
 
     (inl
-     ([m (Π () (tm))])
+     ([m (=> () (tm))])
      (tm))
 
     (inr
-     ([m (Π () (tm))])
+     ([m (=> () (tm))])
      (tm))
 
     (split
-     ([m (Π () (tm))]
-      [l (Π ([x (Π () (tm))]) (tm))]
-      [r (Π ([y (Π () (tm))]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
+     ([m (=> () (tm))]
+      [l (=> ([x (=> () (tm))]) (tm))]
+      [r (=> ([y (=> () (tm))]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
      (tm))
 
     (lam
-     ([m (Π ([x (Π () (tm))]) (tm))])
+     ([m (=> ([x (=> () (tm))]) (tm))])
      (tm))
 
     (is-true
-     ([p (Π () (prop))])
+     ([p (=> () (prop))])
      (TYPE)))
 
   (define-rule (hyp x)
-    (>> (and Γ (with-hyp Γ0 (x (Π () tyx)) Γ1)) goalTy)
+    (>> (and Γ (with-hyp Γ0 (x (=> () tyx)) Γ1)) goalTy)
     (if (not (equal? goalTy tyx))
         (raise-refinement-error
          (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy)
@@ -396,18 +406,18 @@
 
   (define-rule (conj/L x x0 x1)
     (>>
-     (and Γ (with-hyp Γ0 (x (Π () (is-true (conj p q)))) Γ1))
+     (and Γ (with-hyp Γ0 (x (=> () (is-true (conj p q)))) Γ1))
      (is-true (unapply r x)))
     (define Γ/pq
       (append
        Γ0
-       `((,x0 . ,(Π () (is-true p))) (,x1 . ,(Π () (is-true q))))
+       `((,x0 . ,(=> () (is-true p))) (,x1 . ,(=> () (is-true q))))
        (Γ1 (pair ($ x0) ($ x1)))))
     ([X (>> Γ/pq (is-true (r (pair ($ x0) ($ x1)))))])
     (Λ* Γ
         (subst
-         ([x0 (fst ($ x))]
-          [x1 (snd ($ x))])
+         ([x0 (Λ () (fst ($ x)))]
+          [x1 (Λ () (snd ($ x)))])
          ($* X Γ/pq))))
 
   (define-rule disj/R/1
@@ -422,10 +432,10 @@
 
   (define-rule (disj/L x)
     (>>
-     (and Γ (with-hyp Γ0 (x (Π () (is-true (disj p q)))) Γ1))
+     (and Γ (with-hyp Γ0 (x (=> () (is-true (disj p q)))) Γ1))
      (is-true (unapply r x)))
-    (define (Γ/p y) (append Γ0 `((,y . ,(Π () (is-true p)))) (Γ1 (inl ($ y)))))
-    (define (Γ/q y) (append Γ0 `((,y . ,(Π () (is-true q)))) (Γ1 (inr ($ y)))))
+    (define (Γ/p y) (append Γ0 `((,y . ,(=> () (is-true p)))) (Γ1 (Λ () (inl ($ y))))))
+    (define (Γ/q y) (append Γ0 `((,y . ,(=> () (is-true q)))) (Γ1 (Λ  () (inr ($ y))))))
     ([L (>> (Γ/p x) (is-true (r (inl ($ x)))))]
      [R (>> (Γ/q x) (is-true (r (inr ($ x)))))])
     (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))
@@ -434,7 +444,7 @@
   (define-rule (imp/R x)
     (>> Γ (is-true (imp p q)))
     (define (Γ/p x)
-      (ctx-set Γ x (Π () (is-true p))))
+      (ctx-set Γ x (=> () (is-true p))))
     ([X (>> (Γ/p x) (is-true q))])
     (lam (x) ($* X (Γ/p x))))
 
@@ -444,7 +454,7 @@
 
   (define-rule (F/L x)
     (>>
-     (and Γ (with-hyp Γ0 (x (Π () (is-true (F)))) Γ1))
+     (and Γ (with-hyp Γ0 (x (=> () (is-true (F)))) Γ1))
      (is-true p))
     ()
     (nil))
@@ -473,6 +483,14 @@
      conj/R
      t1
      t2))
+
+  (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
+               [script
+                (lam/t (x)
+                       (multicut
+                        probe
+                        (split/t x (pair/t (hyp x) T/R) (orelse T/R (F/L x)))))])
+          (proof-extract (script goal)))
 
   (require (only-in racket/port with-output-to-string))
   (check-not-false
