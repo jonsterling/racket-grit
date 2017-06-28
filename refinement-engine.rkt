@@ -34,7 +34,7 @@
   (provide with-hyp unapply)
 
   (define/contract (ctx-split Γ x)
-    (-> ctx? free-name? (values ctx? =>? (-> Λ? ctx?)))
+    (-> ctx? free-name? (values ctx? =>? (-> any/c ctx?)))
     (let* ([p (λ (cell) (not (equal? x (car cell))))]
            [Γ0 (takef Γ p)]
            [Γ1 (cdr (dropf Γ p))])
@@ -43,7 +43,7 @@
        (ctx-ref Γ x)
        (λ (e)
          ctx-map
-         (λ (a) (instantiate (abstract (list x) a) (list e)))
+         (λ (a) (instantiate (abstract (list x) a) (list (as-term e))))
          Γ1))))
 
   (define-for-syntax ctx-split-expander
@@ -394,7 +394,7 @@
       (splice-context
        Γ0
        ([x0 (is-true p)] [x1 (is-true q)])
-       (Γ1 (Λ () (pair x0 x1)))))
+       (Γ1 (pair x0 x1))))
     ([X (>> Γ/pq (is-true (r (pair x0 x1))))])
     (subst
      ([x0 () (fst x)]
@@ -414,8 +414,8 @@
   (define-rule (disj/L x)
     (>> (and Γ (with-hyp Γ0 x () (is-true (disj p q)) Γ1))
         (is-true (unapply r x)))
-    (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (Λ () (inl y)))))
-    (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (Λ () (inr y)))))
+    (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (inl y))))
+    (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (inr y))))
     ([L (>> (Γ/p x) (is-true (r (inl x))))]
      [R (>> (Γ/q x) (is-true (r (inr x))))])
     (split x (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))

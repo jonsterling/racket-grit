@@ -27,6 +27,7 @@
  make-$
  as-classifier
  as-atomic-term
+ as-term
 
  subst
  
