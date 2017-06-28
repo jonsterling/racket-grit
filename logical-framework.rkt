@@ -205,6 +205,59 @@
        (syntax/loc stx
          (make-$ x (list e ...)))])))
 
+(define (under-scope f sc)
+  (match-define (cons vars body) (auto-instantiate sc))
+  (abstract vars (f body)))
+
+(define (as-classifier tm)
+  (match tm
+    [(? =>? (and (app =>-domain tele) (app =>-codomain cod)))
+     (make-=> (as-telescope tele) (under-scope as-base-classifier cod))]
+    [_ (=> () (as-base-classifier tm))]))
+
+(define (as-base-classifier tm)
+  (match tm
+    [(TYPE) (TYPE)]
+    [_ (as-atomic-term tm)]))
+
+(define (as-telescope tele)
+  (for/list ([sc (in-list tele)])
+    (under-scope as-classifier sc)))
+
+(define (as-atomic-term tm)
+  (match tm
+    [(? $? (and (app $-var x) (app $-spine sp)))
+     (if (free-name? x)
+         (make-$ x (as-spine sp))
+         (error "Crappy term!!"))]
+    [(? free-name?)
+     ($ tm)]
+    [_ (error (format "Crappy term!!! ~a" tm))]))
+
+(define (as-spine sp)
+  (map as-term sp))
+
+(define (as-term tm)
+  (match tm
+    [(? Λ? (app Λ-scope (app auto-instantiate (cons vars body))))
+     (make-Λ (abstract vars (as-atomic-term body)))]
+    [_ (Λ () (as-atomic-term tm))]))
+
+(module+ test
+  (check-true
+   (match (as-term (fresh))
+     [(Λ () ($ (? free-name?))) #t]
+     [_ #f]))
+
+  (check-equal?
+   (as-classifier (=> ((x (TYPE))) (TYPE)))
+   (=> ((x (=> () (TYPE)))) (TYPE)))
+
+  (let ([x (fresh)] [y (fresh)])
+    (check-equal?
+     (as-classifier ($ x y))
+     (=> () ($ x (Λ () ($ y)))))))
+
 (define-for-syntax sig-expander
   (λ (stx)
     (syntax-parse stx
