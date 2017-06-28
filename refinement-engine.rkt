@@ -359,12 +359,12 @@
 
     (split
      ([m (=> () (tm))]
-      [l (=> ([x (=> () (tm))]) (tm))]
-      [r (=> ([y (=> () (tm))]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
+      [l (=> ([x (tm)]) (tm))]
+      [r (=> ([y (tm)]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
      (tm))
 
     (lam
-     ([m (=> ([x (=> () (tm))]) (tm))])
+     ([m (=> ([x (tm)]) (tm))])
      (tm))
 
     (is-true
