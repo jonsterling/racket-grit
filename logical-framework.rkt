@@ -228,8 +228,6 @@
 
 (define (as-classifier tm)
   (match tm
-    [(? =>? (and (app =>-domain tele) (app =>-codomain cod)))
-     (make-wf-=> tele cod)]
     [(? =>? _) tm]
     [_ (=> () (as-base-classifier tm))]))
 
@@ -244,9 +242,9 @@
 
 (define (as-atomic-term tm)
   (match tm
-    [(? $? (and (app $-var x) (app $-spine sp)))
+    [(? $? (app $-var x))
      (if (free-name? x)
-         (make-wf-$ x sp)
+         tm
          (error "Crappy term!!"))]
     [(? free-name?)
      ($ tm)]
@@ -257,7 +255,7 @@
 
 (define (as-term tm)
   (match tm
-    [(? Λ? (app Λ-scope sc)) (make-wf-Λ sc)]
+    [(? Λ? _) tm]
     [_ (Λ () (as-atomic-term tm))]))
 
 
