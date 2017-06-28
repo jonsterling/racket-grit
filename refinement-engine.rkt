@@ -396,11 +396,10 @@
        ([x0 (is-true p)] [x1 (is-true q)])
        (Γ1 (pair x0 x1))))
     ([X (>> Γ/pq (is-true (r (pair x0 x1))))])
-    (Λ* Γ
-        (subst
-         ([x0 () (fst x)]
-          [x1 () (snd x)])
-         ($* X Γ/pq))))
+    (subst
+     ([x0 () (fst x)]
+      [x1 () (snd x)])
+     ($* X Γ/pq)))
 
   (define-rule disj/R/1
     (>> Γ (is-true (disj p q)))
