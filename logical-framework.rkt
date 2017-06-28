@@ -1,21 +1,21 @@
 #lang racket/base
 
 (require
- (for-syntax
-  racket/base
+  (for-syntax
+   racket/base
+   racket/list
+   syntax/parse
+   racket/syntax
+   (for-syntax racket/base))
+  racket/contract
+  racket/fixnum
+  racket/function
   racket/list
-  syntax/parse
-  racket/syntax
-  (for-syntax racket/base))
- racket/contract
- racket/fixnum
- racket/function
- racket/list
- racket/match
- racket/provide-syntax
- racket/string
- racket/dict
- "locally-nameless.rkt")
+  racket/match
+  racket/provide-syntax
+  racket/string
+  racket/dict
+  "locally-nameless.rkt")
 
 
 (provide
@@ -47,7 +47,7 @@
   (require rackunit))
 
 
-(struct => (domain codomain wf)
+(struct => (domain codomain)
   #:omit-define-syntaxes
   #:extra-constructor-name make-=>
   #:methods gen:custom-write
@@ -69,13 +69,13 @@
      (define sc (=>-codomain pi))
      (match-define (binder abs-tl _) bindings/telescope)
      (match-define (binder abs-sc _) (bindings-accessor sc))
-     (make-=> (abs-tl tl frees i) (abs-sc sc frees i) (=>-wf pi)))
+     (make-=> (abs-tl tl frees i) (abs-sc sc frees i)))
    (λ (pi i new-exprs)
      (define tl (=>-domain pi))
      (define sc (=>-codomain pi))
      (match-define (binder _ inst-tl) bindings/telescope)
      (match-define (binder _ inst-sc) (bindings-accessor sc))
-     (make-=> (inst-tl tl i new-exprs) (inst-sc sc i new-exprs) (=>-wf pi))))
+     (make-=> (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
 
   #:methods gen:equal+hash
   ((define (equal-proc pi1 pi2 rec-equal?)
@@ -97,14 +97,14 @@
       [(_ ((x:id e:expr) ...) cod:expr)
        (syntax/loc stx
          (? =>? (and (app =>-domain (telescope (x e) ...))
-                    (app =>-codomain (in-scope (x ...) cod)))))]))
+                     (app =>-codomain (in-scope (x ...) cod)))))]))
   (λ (stx)
     (syntax-parse stx
       [(_ ((x:id e:expr) ...) cod:expr)
        (syntax/loc stx
          (make-wf-=> (telescope (x e) ...) (in-scope (x ...) cod)))])))
 
-(struct Λ (scope wf)
+(struct Λ (scope)
   #:omit-define-syntaxes
   #:extra-constructor-name make-Λ
   #:methods gen:custom-write
@@ -121,11 +121,11 @@
    (λ (e frees i)
      (define sc (Λ-scope e))
      (match-define (binder abs _) (bindings-accessor sc))
-     (make-Λ (abs sc frees i) (Λ-wf e)))
+     (make-Λ (abs sc frees i)))
    (λ (e i new-exprs)
      (define sc (Λ-scope e))
      (match-define (binder _ inst) (bindings-accessor sc))
-     (make-Λ (inst sc i new-exprs) (Λ-wf e))))
+     (make-Λ (inst sc i new-exprs))))
 
 
   #:methods gen:equal+hash
@@ -158,7 +158,7 @@
    (λ (ty frees i) ty)
    (λ (ty i new-exprs) ty)))
 
-(struct $ (var spine wf)
+(struct $ (var spine)
   #:omit-define-syntaxes
   #:extra-constructor-name make-$
   #:transparent
@@ -178,7 +178,7 @@
      (define (go arg)
        (match-define (binder abs _) (bindings-accessor arg))
        (abs arg frees i))
-     (make-$ (abs-var var frees i) (map go spine) ($-wf ap)))
+     (make-$ (abs-var var frees i) (map go spine)))
    (λ (ap i new-exprs)
      (define var ($-var ap))
      (define spine ($-spine ap))
@@ -188,8 +188,8 @@
        (inst-arg arg i new-exprs))
      (define new-spine (map go-arg spine))
      (match (inst-var var i new-exprs)
-       [(bound-name ix) (make-$ (bound-name ix) new-spine ($-wf ap))]
-       [(free-name sym hint) (make-$ (free-name sym hint) new-spine ($-wf ap))]
+       [(bound-name ix) (make-$ (bound-name ix) new-spine)]
+       [(free-name sym hint) (make-$ (free-name sym hint) new-spine)]
        [(? Λ? (app Λ-scope sc))
         (define body (scope-body sc))
         (match-let ([(binder _ inst-body) (bindings-accessor body)])
@@ -214,18 +214,17 @@
   (abstract vars (f body)))
 
 (define (make-wf-=> tele cod)
-  (make-=> (as-telescope tele) (under-scope as-base-classifier cod) #t))
+  (make-=> (as-telescope tele) (under-scope as-base-classifier cod)))
 
 (define (make-wf-Λ sc)
-  (make-Λ (under-scope as-atomic-term sc) #t))
+  (make-Λ (under-scope as-atomic-term sc)))
 
 (define (make-wf-$ x sp)
-  (make-$ x (as-spine sp) #t))
-
+  (make-$ x (as-spine sp)))
 
 (define (as-classifier tm)
   (match tm
-    [(? =>? (and (app =>-wf #f) (app =>-domain tele) (app =>-codomain cod)))
+    [(? =>? (and (app =>-domain tele) (app =>-codomain cod)))
      (make-wf-=> tele cod)]
     [(? =>? _) tm]
     [_ (=> () (as-base-classifier tm))]))
@@ -241,11 +240,10 @@
 
 (define (as-atomic-term tm)
   (match tm
-    [(? $? (and (app $-wf #f) (app $-var x) (app $-spine sp)))
+    [(? $? (and (app $-var x) (app $-spine sp)))
      (if (free-name? x)
          (make-wf-$ x sp)
          (error "Crappy term!!"))]
-    [(? $? _) tm]
     [(? free-name?)
      ($ tm)]
     [_ (error (format "Crappy term!!! ~a" tm))]))
@@ -255,8 +253,7 @@
 
 (define (as-term tm)
   (match tm
-    [(? Λ? (and (app Λ-wf #f) (app Λ-scope sc))) (make-wf-Λ sc)]
-    [(? Λ? _) tm]
+    [(? Λ? (app Λ-scope sc)) (make-wf-Λ sc)]
     [_ (Λ () (as-atomic-term tm))]))
 
 
