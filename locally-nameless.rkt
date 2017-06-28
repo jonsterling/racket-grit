@@ -1,19 +1,19 @@
 #lang racket/base
 
 (require
- (for-syntax
-  racket/base
+  (for-syntax
+   racket/base
+   racket/list
+   syntax/parse
+   racket/syntax
+   (for-syntax racket/base))
+  racket/contract
+  racket/fixnum
   racket/list
-  syntax/parse
-  racket/syntax
-  (for-syntax racket/base))
- racket/contract
- racket/fixnum
- racket/list
- racket/match
- racket/provide-syntax
- racket/set
- racket/string)
+  racket/match
+  racket/provide-syntax
+  racket/set
+  racket/string)
 
 (provide
  prop:bindings
@@ -150,7 +150,7 @@
   (define seen (mutable-set))
   (for/and ([var frees])
     (begin0 (not (set-member? seen var))
-      (set-add! seen var))))
+            (set-add! seen var))))
 
 
 (struct scope (valence body)
