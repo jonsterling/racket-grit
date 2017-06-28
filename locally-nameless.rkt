@@ -231,7 +231,8 @@
       (abs closed-expr frees 0)))
   (scope (length frees) open-expr))
 
-(define (auto-instantiate sc)
+(define/contract (auto-instantiate sc)
+  (-> scope? (cons/c (listof free-name?) any/c))
   (define frees (build-list (scope-valence sc) (λ (i) (fresh))))
   (cons frees (instantiate sc frees)))
 
