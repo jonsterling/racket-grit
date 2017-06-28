@@ -291,17 +291,6 @@
 
 (define-match-expander signature sig-expander sig-expander)
 
-
-(define-syntax (one-pattern-lhs stx)
-  (syntax-parse stx
-    #:literals (=>)
-    [(_ (x:id (=> () e)))
-     (syntax/loc stx
-       (x))]
-    [(_ (x:id (=> (y1 y ...) e)) elem ...)
-     (syntax/loc stx
-       ((y1 y ...) x))]))
-
 (define-for-syntax tele-expander
   (λ (stx)
     (define (make-tele bound todo)
