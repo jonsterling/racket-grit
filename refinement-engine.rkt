@@ -208,17 +208,6 @@
 (define (raise-refinement-error msg goal)
   (raise (exn:fail:refinement msg (current-continuation-marks) goal)))
 
-; TODO: either delete this, or refactor define-rule to use it somehow to avoid duplication of logic
-(define-syntax (rule stx)
-  (syntax-parse stx
-    [(_ goal ((x:id subgoal) ...) extract)
-     (syntax/loc stx
-       (match-lambda
-         [(and (>> Γ J) goal)
-          (subgoals ((x subgoal) ...) (Λ* Γ extract))]
-         [other-goal
-          (raise-refinement-error (format "Inapplicable: ~a" other-goal) other-goal)]))]))
-
 (define-syntax (define-rule stx)
   (define (get-name h)
     (syntax-parse h
