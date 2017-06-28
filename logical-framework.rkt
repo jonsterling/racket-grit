@@ -36,12 +36,12 @@
  chk-spine
  inf-rtm
  
- wf-rtype?
- wf-type?
- wf-tele?
- wf-spine?
- wf-ntm?
- wf-rtm?)
+ ok-rtype?
+ ok-type?
+ ok-tele?
+ ok-spine?
+ ok-ntm?
+ ok-rtm?)
 
 (module+ test
   (require rackunit))
@@ -424,7 +424,7 @@
 
 (define/contract (wf-ctx? ctx)
   (-> ctx? boolean?)
-  ((wf-tele? '()) (ctx->tele ctx)))
+  ((ok-tele? '()) (ctx->tele ctx)))
 
 
 (define/contract (ctx-set ctx x ty)
@@ -458,7 +458,7 @@
          (aux ctx xs tele))]))
   (aux ctx '() tele))
 
-(define/contract (wf-tele? ctx)
+(define/contract (ok-tele? ctx)
   (-> ctx? (-> tele? boolean?))
   (λ (tele)
     (with-handlers ([exn:fail? (λ (v) #f)])
@@ -466,7 +466,7 @@
       #t)))
 
 
-(define/contract (wf-rtype? ctx)
+(define/contract (ok-rtype? ctx)
   (-> ctx? (-> rtype? boolean?))
   (λ (rty)
     (with-handlers ([exn:fail? (λ (v) #f)])
@@ -482,7 +482,7 @@
         (chk-rtype ctx (instantiate cod xs))])]))
 
 
-(define/contract (wf-type? ctx)
+(define/contract (ok-type? ctx)
   (-> ctx? (-> type? boolean?))
   (λ (ty)
     (with-handlers ([exn:fail? (λ (v) #f)])
@@ -499,7 +499,7 @@
 
 (define/contract (chk-spine ctx tele spine)
   (->i ((ctx ctx?)
-        (tele (ctx) (wf-tele? ctx))
+        (tele (ctx) (ok-tele? ctx))
         (spine spine?))
        (result any/c))
   (define (aux ctx env tele spine)
@@ -511,9 +511,9 @@
   (aux ctx '() tele spine))
 
 
-(define/contract (wf-spine? ctx tele)
+(define/contract (ok-spine? ctx tele)
   (->i ((ctx ctx?)
-        (tele (ctx) (wf-tele? ctx)))
+        (tele (ctx) (ok-tele? ctx)))
        (result (-> spine? boolean?)))
   (λ (spine)
     (with-handlers ([exn:fail? (λ (v) #f)])
@@ -523,7 +523,7 @@
 (define/contract (chk-ntm ctx ntm ty)
   (->i ((ctx ctx?)
         (ntm Λ?)
-        (ty (ctx ntm) (wf-type? ctx)))
+        (ty (ctx ntm) (ok-type? ctx)))
        (result any/c))
   (match* (ntm ty)
     [((? Λ? (app Λ-scope sc)) (? =>? (and (app =>-domain tele) (app =>-codomain cod))))
@@ -532,9 +532,9 @@
         (chk-rtm ctx (instantiate sc xs) (instantiate cod xs))])]))
 
 
-(define/contract (wf-ntm? ctx ty)
+(define/contract (ok-ntm? ctx ty)
   (->i ((ctx ctx?)
-        (ty (ctx) (wf-type? ctx)))
+        (ty (ctx) (ok-type? ctx)))
        (result (-> Λ? boolean?)))
   (λ (ntm)
     (with-handlers ([exn:fail? (λ (v) #f)])
@@ -544,7 +544,7 @@
 (define/contract (inf-rtm ctx rtm)
   (->i ((ctx ctx?)
         (rtm $?))
-       (result (ctx rtm) (wf-rtype? ctx)))
+       (result (ctx rtm) (ok-rtype? ctx)))
   (match rtm
     [(? $? (and (app $-var x) (app $-spine spine)))
      (match (ctx-ref ctx x)
@@ -558,9 +558,9 @@
       #t
       (error "Type mismatch")))
 
-(define/contract (wf-rtm? ctx rty)
+(define/contract (ok-rtm? ctx rty)
   (->i ((ctx ctx?)
-        (rty (ctx) (wf-rtype? ctx)))
+        (rty (ctx) (ok-rtype? ctx)))
        (result (-> $? boolean?)))
   (λ (rtm)
     (with-handlers ([exn:fail? (λ (v) #f)])
