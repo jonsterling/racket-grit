@@ -394,7 +394,7 @@
       (splice-context
        Γ0
        ([x0 (is-true p)] [x1 (is-true q)])
-       (Γ1 (pair x0 x1))))
+       (Γ1 (Λ () (pair x0 x1)))))
     ([X (>> Γ/pq (is-true (r (pair x0 x1))))])
     (subst
      ([x0 () (fst x)]
