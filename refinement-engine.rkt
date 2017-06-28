@@ -14,7 +14,6 @@
 
 (module+ test (require rackunit))
 (provide
- subst
  unapply
  with-hyp
  define-rule
@@ -149,7 +148,7 @@
   (define/contract (pack-goal ctx rty)
     (-> ctx? rtype? >>?)
     (let ([xs (map car ctx)])
-      (make->> xs (make-=> (ctx->tele ctx) (abstract xs rty)))))
+      (make->> xs (make-wf-=> (ctx->tele ctx) (abstract xs rty)))))
 
   (define/contract (unpack-goal goal)
     (-> >>? (values ctx? rtype?))
@@ -189,17 +188,17 @@
     [(cons x (and (app =>-domain tele) (app =>-codomain cod)))
      (let* ([xs (map (λ (sc) (fresh)) tele)]
             [ctx (tele->ctx xs tele)])
-       (make-Λ
-        (abstract xs (make-$ x (map eta ctx)))))]))
+       (make-wf-Λ
+        (abstract xs (make-wf-$ x (map eta ctx)))))]))
 
 (define/contract ($* x Γ)
   (-> free-name? ctx? $?)
-  (make-$ x (map eta Γ)))
+  (make-wf-$ x (map eta Γ)))
 
 (define/contract (Λ* Γ e)
   (-> ctx? $? Λ?)
   (define xs (map car Γ))
-  (make-Λ (abstract xs e)))
+  (make-wf-Λ (abstract xs e)))
 
 
 (struct exn:fail:refinement exn:fail (goal)
@@ -300,19 +299,6 @@
                ((apply orelse (cons t ts)) goal))])
          (t1 goal)))]))
 
-(define-syntax (subst stx)
-  (syntax-parse stx
-    [(_ ([x:id ex:expr] ...) e:expr)
-     (syntax/loc stx
-       (instantiate
-           (abstract (list x ...) e)
-         (list ex ...)))]
-    [(_ [x:id ex:expr] e:expr)
-     (syntax/loc stx
-       (instantiate
-           (abstract (list x) e)
-         (list ex)))]))
-
 
 (define/contract ((probe-at loc) goal)
   (-> source-location? tac/c)
@@ -404,7 +390,7 @@
          goalTy)
         '())
     ()
-    ($ x))
+    x)
 
   (define-rule conj/R
     (>> Γ (is-true (conj p q)))
@@ -419,12 +405,12 @@
       (splice-context
        Γ0
        ([x0 (is-true p)] [x1 (is-true q)])
-       (Γ1 (pair ($ x0) ($ x1)))))
-    ([X (>> Γ/pq (is-true (r (pair ($ x0) ($ x1)))))])
+       (Γ1 (pair x0 x1))))
+    ([X (>> Γ/pq (is-true (r (pair x0 x1))))])
     (Λ* Γ
         (subst
-         ([x0 (Λ () (fst ($ x)))]
-          [x1 (Λ () (snd ($ x)))])
+         ([x0 () (fst x)]
+          [x1 () (snd x)])
          ($* X Γ/pq))))
 
   (define-rule disj/R/1
@@ -440,11 +426,11 @@
   (define-rule (disj/L x)
     (>> (and Γ (with-hyp Γ0 x () (is-true (disj p q)) Γ1))
         (is-true (unapply r x)))
-    (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (Λ () (inl ($ y))))))
-    (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (Λ  () (inr ($ y))))))
-    ([L (>> (Γ/p x) (is-true (r (inl ($ x)))))]
-     [R (>> (Γ/q x) (is-true (r (inr ($ x)))))])
-    (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))
+    (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (Λ () (inl y)))))
+    (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (Λ () (inr y)))))
+    ([L (>> (Γ/p x) (is-true (r (inl x))))]
+     [R (>> (Γ/q x) (is-true (r (inr x))))])
+    (split x (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))
 
 
   (define-rule (imp/R x)
@@ -512,6 +498,6 @@
           (proof-extract (script goal)))
         (Λ ()
            (lam (x)
-                (split ($ x)
-                       (b) (pair ($ b) (nil))
+                (split x
+                       (b) (pair b (nil))
                        (b) (nil))))))))))

@@ -26,6 +26,9 @@
  make-wf-Λ
  make-wf-$
  as-classifier
+
+ subst
+ 
  ctx-set ctx-ref ctx-map
  ctx->tele tele->ctx
  chk-type
@@ -316,6 +319,20 @@
 
 (define-match-expander telescope
   tele-expander tele-expander)
+
+
+(define-syntax (subst stx)
+  (syntax-parse stx
+    [(_ ([x:id (y:id ...) ex:expr] ...) e:expr)
+     (syntax/loc stx
+       (instantiate
+           (abstract (list x ...) e)
+         (list (Λ (y ...) ex) ...)))]
+    [(_ [x:id (y:id ...) ex:expr] e:expr)
+     (syntax/loc stx
+       (instantiate
+           (abstract (list x) (Λ (y ...) e))
+         (list ex)))]))
 
 
 ; a signature/context is an association list
