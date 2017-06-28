@@ -22,9 +22,9 @@
  TYPE => Λ $
  =>? Λ? $? rtype? ctx?
  define-signature telescope
- make-wf-=> =>-domain =>-codomain
- make-wf-Λ
- make-wf-$
+ make-=> =>-domain =>-codomain
+ make-Λ
+ make-$
  as-classifier
  as-atomic-term
 
@@ -53,7 +53,7 @@
 
 (struct => (domain codomain)
   #:omit-define-syntaxes
-  #:extra-constructor-name make-=>
+  #:extra-constructor-name raw-make-=>
   #:methods gen:custom-write
   ((define (write-proc pi port mode)
      (define tl (=>-domain pi))
@@ -73,13 +73,13 @@
      (define sc (=>-codomain pi))
      (match-define (binder abs-tl _) bindings/telescope)
      (match-define (binder abs-sc _) (bindings-accessor sc))
-     (make-=> (abs-tl tl frees i) (abs-sc sc frees i)))
+     (raw-make-=> (abs-tl tl frees i) (abs-sc sc frees i)))
    (λ (pi i new-exprs)
      (define tl (=>-domain pi))
      (define sc (=>-codomain pi))
      (match-define (binder _ inst-tl) bindings/telescope)
      (match-define (binder _ inst-sc) (bindings-accessor sc))
-     (make-=> (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
+     (raw-make-=> (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
 
   #:methods gen:equal+hash
   ((define (equal-proc pi1 pi2 rec-equal?)
@@ -106,11 +106,11 @@
     (syntax-parse stx
       [(_ ((x:id e:expr) ...) cod:expr)
        (syntax/loc stx
-         (make-wf-=> (telescope (x e) ...) (in-scope (x ...) cod)))])))
+         (make-=> (telescope (x e) ...) (in-scope (x ...) cod)))])))
 
 (struct Λ (scope)
   #:omit-define-syntaxes
-  #:extra-constructor-name make-Λ
+  #:extra-constructor-name raw-make-Λ
   #:methods gen:custom-write
   ((define (write-proc e port mode)
      (define sc (Λ-scope e))
@@ -125,11 +125,11 @@
    (λ (e frees i)
      (define sc (Λ-scope e))
      (match-define (binder abs _) (bindings-accessor sc))
-     (make-Λ (abs sc frees i)))
+     (raw-make-Λ (abs sc frees i)))
    (λ (e i new-exprs)
      (define sc (Λ-scope e))
      (match-define (binder _ inst) (bindings-accessor sc))
-     (make-Λ (inst sc i new-exprs))))
+     (raw-make-Λ (inst sc i new-exprs))))
 
 
   #:methods gen:equal+hash
@@ -150,7 +150,7 @@
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
        (syntax/loc stx
-         (make-wf-Λ (in-scope (x ...) body)))])))
+         (make-Λ (in-scope (x ...) body)))])))
 
 (struct TYPE ()
   #:transparent
@@ -164,7 +164,7 @@
 
 (struct $ (var spine)
   #:omit-define-syntaxes
-  #:extra-constructor-name make-$
+  #:extra-constructor-name raw-make-$
   #:transparent
   #:methods gen:custom-write
   ((define (write-proc ap port mode)
@@ -182,7 +182,7 @@
      (define (go arg)
        (match-define (binder abs _) (bindings-accessor arg))
        (abs arg frees i))
-     (make-$ (abs-var var frees i) (map go spine)))
+     (raw-make-$ (abs-var var frees i) (map go spine)))
    (λ (ap i new-exprs)
      (define var ($-var ap))
      (define spine ($-spine ap))
@@ -192,8 +192,8 @@
        (inst-arg arg i new-exprs))
      (define new-spine (map go-arg spine))
      (match (inst-var var i new-exprs)
-       [(bound-name ix) (make-$ (bound-name ix) new-spine)]
-       [(free-name sym hint) (make-$ (free-name sym hint) new-spine)]
+       [(bound-name ix) (raw-make-$ (bound-name ix) new-spine)]
+       [(free-name sym hint) (raw-make-$ (free-name sym hint) new-spine)]
        [(? Λ? (app Λ-scope sc))
         (define body (scope-body sc))
         (match-let ([(binder _ inst-body) (bindings-accessor body)])
@@ -211,20 +211,20 @@
     (syntax-parse stx
       [(_ x e ...)
        (syntax/loc stx
-         (as-atomic-term (make-wf-$ x (list e ...))))])))
+         (as-atomic-term (make-$ x (list e ...))))])))
 
 (define (under-scope f sc)
   (match-define (cons vars body) (auto-instantiate sc))
   (abstract vars (f body)))
 
-(define (make-wf-=> tele cod)
-  (make-=> (as-telescope tele) (under-scope as-base-classifier cod)))
+(define (make-=> tele cod)
+  (raw-make-=> (as-telescope tele) (under-scope as-base-classifier cod)))
 
-(define (make-wf-Λ sc)
-  (make-Λ (under-scope as-atomic-term sc)))
+(define (make-Λ sc)
+  (raw-make-Λ (under-scope as-atomic-term sc)))
 
-(define (make-wf-$ x sp)
-  (make-$ x (as-spine sp)))
+(define (make-$ x sp)
+  (raw-make-$ x (as-spine sp)))
 
 (define (as-classifier tm)
   (match tm

@@ -148,7 +148,7 @@
   (define/contract (pack-goal ctx rty)
     (-> ctx? rtype? >>?)
     (let ([xs (map car ctx)])
-      (make->> xs (make-wf-=> (ctx->tele ctx) (abstract xs rty)))))
+      (make->> xs (make-=> (ctx->tele ctx) (abstract xs rty)))))
 
   (define/contract (unpack-goal goal)
     (-> >>? (values ctx? rtype?))
@@ -188,17 +188,17 @@
     [(cons x (and (app =>-domain tele) (app =>-codomain cod)))
      (let* ([xs (map (λ (sc) (fresh)) tele)]
             [ctx (tele->ctx xs tele)])
-       (make-wf-Λ
-        (abstract xs (make-wf-$ x (map eta ctx)))))]))
+       (make-Λ
+        (abstract xs (make-$ x (map eta ctx)))))]))
 
 (define/contract ($* x Γ)
   (-> free-name? ctx? $?)
-  (make-wf-$ x (map eta Γ)))
+  (make-$ x (map eta Γ)))
 
 (define/contract (Λ* Γ e)
   (-> ctx? any/c Λ?)
   (define xs (map car Γ))
-  (make-wf-Λ (abstract xs e)))
+  (make-Λ (abstract xs e)))
 
 
 (struct exn:fail:refinement exn:fail (goal)
