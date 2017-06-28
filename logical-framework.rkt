@@ -22,9 +22,9 @@
  TYPE => Λ $
  =>? Λ? $? rtype? ctx?
  define-signature telescope
- make-=> =>-domain =>-codomain
- make-Λ
- make-$
+ make-wf-=> =>-domain =>-codomain
+ make-wf-Λ
+ make-wf-$
  as-classifier
  ctx-set ctx-ref ctx-map
  ctx->tele tele->ctx
@@ -35,6 +35,7 @@
  chk-rtm
  chk-spine
  inf-rtm
+ 
  wf-rtype?
  wf-type?
  wf-tele?
@@ -46,7 +47,7 @@
   (require rackunit))
 
 
-(struct => (domain codomain)
+(struct => (domain codomain wf)
   #:omit-define-syntaxes
   #:extra-constructor-name make-=>
   #:methods gen:custom-write
@@ -68,13 +69,13 @@
      (define sc (=>-codomain pi))
      (match-define (binder abs-tl _) bindings/telescope)
      (match-define (binder abs-sc _) (bindings-accessor sc))
-     (make-=> (abs-tl tl frees i) (abs-sc sc frees i)))
+     (make-=> (abs-tl tl frees i) (abs-sc sc frees i) (=>-wf pi)))
    (λ (pi i new-exprs)
      (define tl (=>-domain pi))
      (define sc (=>-codomain pi))
      (match-define (binder _ inst-tl) bindings/telescope)
      (match-define (binder _ inst-sc) (bindings-accessor sc))
-     (make-=> (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
+     (make-=> (inst-tl tl i new-exprs) (inst-sc sc i new-exprs) (=>-wf pi))))
 
   #:methods gen:equal+hash
   ((define (equal-proc pi1 pi2 rec-equal?)
@@ -101,9 +102,9 @@
     (syntax-parse stx
       [(_ ((x:id e:expr) ...) cod:expr)
        (syntax/loc stx
-         (make-=> (telescope (x e) ...) (in-scope (x ...) cod)))])))
+         (make-wf-=> (telescope (x e) ...) (in-scope (x ...) cod)))])))
 
-(struct Λ (scope)
+(struct Λ (scope wf)
   #:omit-define-syntaxes
   #:extra-constructor-name make-Λ
   #:methods gen:custom-write
@@ -120,11 +121,11 @@
    (λ (e frees i)
      (define sc (Λ-scope e))
      (match-define (binder abs _) (bindings-accessor sc))
-     (make-Λ (abs sc frees i)))
+     (make-Λ (abs sc frees i) (Λ-wf e)))
    (λ (e i new-exprs)
      (define sc (Λ-scope e))
      (match-define (binder _ inst) (bindings-accessor sc))
-     (make-Λ (inst sc i new-exprs))))
+     (make-Λ (inst sc i new-exprs) (Λ-wf e))))
 
 
   #:methods gen:equal+hash
@@ -145,7 +146,7 @@
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
        (syntax/loc stx
-         (make-Λ (in-scope (x ...) (as-atomic-term body))))])))
+         (make-wf-Λ (in-scope (x ...) (as-atomic-term body))))])))
 
 (struct TYPE ()
   #:transparent
@@ -157,7 +158,7 @@
    (λ (ty frees i) ty)
    (λ (ty i new-exprs) ty)))
 
-(struct $ (var spine)
+(struct $ (var spine wf)
   #:omit-define-syntaxes
   #:extra-constructor-name make-$
   #:transparent
@@ -177,7 +178,7 @@
      (define (go arg)
        (match-define (binder abs _) (bindings-accessor arg))
        (abs arg frees i))
-     (make-$ (abs-var var frees i) (map go spine)))
+     (make-$ (abs-var var frees i) (map go spine) ($-wf ap)))
    (λ (ap i new-exprs)
      (define var ($-var ap))
      (define spine ($-spine ap))
@@ -187,8 +188,8 @@
        (inst-arg arg i new-exprs))
      (define new-spine (map go-arg spine))
      (match (inst-var var i new-exprs)
-       [(bound-name ix) (make-$ (bound-name ix) new-spine)]
-       [(free-name sym hint) (make-$ (free-name sym hint) new-spine)]
+       [(bound-name ix) (make-$ (bound-name ix) new-spine ($-wf ap))]
+       [(free-name sym hint) (make-$ (free-name sym hint) new-spine ($-wf ap))]
        [(? Λ? (app Λ-scope sc))
         (define body (scope-body sc))
         (match-let ([(binder _ inst-body) (bindings-accessor body)])
@@ -206,16 +207,27 @@
     (syntax-parse stx
       [(_ x e ...)
        (syntax/loc stx
-         (as-atomic-term (make-$ x (list e ...))))])))
+         (as-atomic-term (make-wf-$ x (list e ...))))])))
 
 (define (under-scope f sc)
   (match-define (cons vars body) (auto-instantiate sc))
   (abstract vars (f body)))
 
+(define (make-wf-=> tele cod)
+  (make-=> (as-telescope tele) (under-scope as-base-classifier cod) #t))
+
+(define (make-wf-Λ sc)
+  (make-Λ (under-scope as-atomic-term sc) #t))
+
+(define (make-wf-$ x sp)
+  (make-$ x (as-spine sp) #t))
+
+
 (define (as-classifier tm)
   (match tm
-    [(? =>? (and (app =>-domain tele) (app =>-codomain cod)))
-     (make-=> (as-telescope tele) (under-scope as-base-classifier cod))]
+    [(? =>? (and (app =>-wf #f) (app =>-domain tele) (app =>-codomain cod)))
+     (make-wf-=> tele cod)]
+    [(? =>? _) tm]
     [_ (=> () (as-base-classifier tm))]))
 
 (define (as-base-classifier tm)
@@ -229,10 +241,11 @@
 
 (define (as-atomic-term tm)
   (match tm
-    [(? $? (and (app $-var x) (app $-spine sp)))
+    [(? $? (and (app $-wf #f) (app $-var x) (app $-spine sp)))
      (if (free-name? x)
-         (make-$ x (as-spine sp))
+         (make-wf-$ x sp)
          (error "Crappy term!!"))]
+    [(? $? _) tm]
     [(? free-name?)
      ($ tm)]
     [_ (error (format "Crappy term!!! ~a" tm))]))
@@ -242,9 +255,10 @@
 
 (define (as-term tm)
   (match tm
-    [(? Λ? (app Λ-scope (app auto-instantiate (cons vars body))))
-     (make-Λ (abstract vars (as-atomic-term body)))]
+    [(? Λ? (and (app Λ-wf #f) (app Λ-scope sc))) (make-wf-Λ sc)]
+    [(? Λ? _) tm]
     [_ (Λ () (as-atomic-term tm))]))
+
 
 (define (unwrap-nullary-binder tm)
   (match tm
@@ -555,9 +569,11 @@
 
 
 (module+ test
+  (=> ((a (fresh)) (b a)) b)
+  
   (let ([x (fresh "hello")])
     (check-equal?
-     (=> ((a x) (b ($ a))) ($ b))
+     (=> ((a x) (b a)) b)
      (=> ((b x) (c ($ b))) ($ c))))
 
   (check-equal?
@@ -571,7 +587,7 @@
         (nat))
     (ifze ((n (=> () (nat)))
            (z (=> () (nat)))
-           (s (=> ((x (=> () (nat)))) (nat))))
+           (s (=> ((x (nat))) (nat))))
           (nat)))
 
   (chk-ctx? num-sig)
@@ -593,17 +609,17 @@
       [($ x) (free-name-hint x)]))
 
   (check-equal?
-   (inf-rtm num-sig (ifze (su (su (ze))) (ze) (x) ($ x)))
+   (inf-rtm num-sig (ifze (su (su (ze))) (ze) (x) x))
    (nat))
 
   (check-equal?
    (printer
-    (ifze (su (su (ze))) (ze) (x) (su ($ x))))
+    (ifze (su (su (ze))) (ze) (x) (su x)))
    "ifze(su(su(ze)); ze; x.su(x))")
 
-  (match (ifze (su (su (ze))) (ze) (x) (su ($ x)))
+  (match (ifze (su (su (ze))) (ze) (x) (su x))
     [(ifze (su (su n)) z (x) s)
-     (check-equal? s (su ($ x)))])
+     (check-equal? s (su x))])
 
   (let ([x (fresh "hi")])
     (check-equal?
