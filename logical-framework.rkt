@@ -25,6 +25,7 @@
  make-=> =>-domain =>-codomain
  make-Λ
  make-$
+ as-classifier
  ctx-set ctx-ref ctx-map
  ctx->tele tele->ctx
  chk-type
@@ -138,11 +139,13 @@
   (λ (stx)
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
-       (syntax/loc stx (? Λ? (app Λ-scope (in-scope (x ...) body))))]))
+       (syntax/loc stx
+         (? Λ? (app Λ-scope (in-scope (x ...) body))))]))
   (λ (stx)
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
-       (syntax/loc stx (make-Λ (in-scope (x ...) body)))])))
+       (syntax/loc stx
+         (make-Λ (in-scope (x ...) (as-atomic-term body))))])))
 
 (struct TYPE ()
   #:transparent
@@ -203,7 +206,7 @@
     (syntax-parse stx
       [(_ x e ...)
        (syntax/loc stx
-         (make-$ x (list e ...)))])))
+         (as-atomic-term (make-$ x (list e ...))))])))
 
 (define (under-scope f sc)
   (match-define (cons vars body) (auto-instantiate sc))
@@ -242,6 +245,12 @@
     [(? Λ? (app Λ-scope (app auto-instantiate (cons vars body))))
      (make-Λ (abstract vars (as-atomic-term body)))]
     [_ (Λ () (as-atomic-term tm))]))
+
+(define (unwrap-nullary-binder tm)
+  (match tm
+    [(=> () tm) tm]
+    [(Λ () tm) tm]
+    [_ tm]))
 
 (module+ test
   (check-true
@@ -331,15 +340,25 @@
                       (syntax-case name/inner ()
                         [(x (y ...))
                          #'(Λ (y ...) x)]))])
-       #'(begin (define-for-syntax (help-expander stx)
-                  (syntax-parse stx
-                    [(_ lhs ...)
-                     (with-syntax ([name-str (symbol->string (syntax->datum #'name))])
-                       (syntax/loc stx
+       #'(begin
+           (define-for-syntax (help-pattern-expander stx)
+             (syntax-parse stx
+               [(_ lhs ...)
+                (with-syntax ([name-str (symbol->string (syntax->datum #'name))])
+                  (syntax/loc stx
+                    (app unwrap-nullary-binder
                          ($ (free-name 'name name-str)
                             rhs
-                            ...)))]))
-                (define-match-expander name help-expander help-expander)))]))
+                            ...))))]))
+           (define-for-syntax (help-constructor-expander stx)
+             (syntax-parse stx
+               [(_ lhs ...)
+                (with-syntax ([name-str (symbol->string (syntax->datum #'name))])
+                  (syntax/loc stx
+                    ($ (free-name 'name name-str)
+                       rhs
+                       ...)))]))
+           (define-match-expander name help-pattern-expander help-constructor-expander)))]))
 
 (define-syntax (define-signature stx)
   (syntax-parse stx

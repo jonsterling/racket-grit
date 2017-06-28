@@ -50,9 +50,9 @@
   (define-for-syntax ctx-split-expander
     (λ (stx)
       (syntax-parse stx
-        [(_ Γ0:expr (x:expr A:expr) Γ1:expr)
+        [(_ Γ0:expr x:expr ((y:id B:expr) ...) A:expr Γ1:expr)
          (syntax/loc stx
-           (app (λ (Γ) (ctx-split Γ x)) Γ0 A Γ1))])))
+           (app (λ (Γ) (ctx-split Γ x)) Γ0 (=> ((y B) ...) A) Γ1))])))
 
   (define-for-syntax unapply-hyp-expander
     (λ (stx)
@@ -74,6 +74,14 @@
     unapply-hyp-expander))
 
 (require 'hyp-pattern)
+
+(define-syntax (splice-context stx)
+  (syntax-parse stx
+    [(_ Γ0:expr ((x:expr ty:expr) ...) Γ1:expr)
+     (syntax/loc stx
+       (append Γ0
+               (list (cons x (as-classifier ty)) ...)
+               Γ1))]))
 
 (module sequent racket/base
   (require
@@ -389,7 +397,7 @@
      (TYPE)))
 
   (define-rule (hyp x)
-    (>> (and Γ (with-hyp Γ0 (x (=> () tyx)) Γ1)) goalTy)
+    (>> (and Γ (with-hyp Γ0 x () tyx Γ1)) goalTy)
     (if (not (equal? goalTy tyx))
         (raise-refinement-error
          (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy)
@@ -405,13 +413,12 @@
     (pair ($* X Γ) ($* Y Γ)))
 
   (define-rule (conj/L x x0 x1)
-    (>>
-     (and Γ (with-hyp Γ0 (x (=> () (is-true (conj p q)))) Γ1))
-     (is-true (unapply r x)))
+    (>> (and Γ (with-hyp Γ0 x () (is-true (conj p q)) Γ1))
+        (is-true (unapply r x)))
     (define Γ/pq
-      (append
+      (splice-context
        Γ0
-       `((,x0 . ,(=> () (is-true p))) (,x1 . ,(=> () (is-true q))))
+       ([x0 (is-true p)] [x1 (is-true q)])
        (Γ1 (pair ($ x0) ($ x1)))))
     ([X (>> Γ/pq (is-true (r (pair ($ x0) ($ x1)))))])
     (Λ* Γ
@@ -431,11 +438,10 @@
     (inr ($* X Γ)))
 
   (define-rule (disj/L x)
-    (>>
-     (and Γ (with-hyp Γ0 (x (=> () (is-true (disj p q)))) Γ1))
-     (is-true (unapply r x)))
-    (define (Γ/p y) (append Γ0 `((,y . ,(=> () (is-true p)))) (Γ1 (Λ () (inl ($ y))))))
-    (define (Γ/q y) (append Γ0 `((,y . ,(=> () (is-true q)))) (Γ1 (Λ  () (inr ($ y))))))
+    (>> (and Γ (with-hyp Γ0 x () (is-true (disj p q)) Γ1))
+        (is-true (unapply r x)))
+    (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (Λ () (inl ($ y))))))
+    (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (Λ  () (inr ($ y))))))
     ([L (>> (Γ/p x) (is-true (r (inl ($ x)))))]
      [R (>> (Γ/q x) (is-true (r (inr ($ x)))))])
     (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))
@@ -454,7 +460,7 @@
 
   (define-rule (F/L x)
     (>>
-     (and Γ (with-hyp Γ0 (x (=> () (is-true (F)))) Γ1))
+     (and Γ (with-hyp Γ0 x () (is-true (F)) Γ1))
      (is-true p))
     ()
     (nil))
@@ -484,13 +490,6 @@
      t1
      t2))
 
-  (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]
-               [script
-                (lam/t (x)
-                       (multicut
-                        probe
-                        (split/t x (pair/t (hyp x) T/R) (orelse T/R (F/L x)))))])
-          (proof-extract (script goal)))
 
   (require (only-in racket/port with-output-to-string))
   (check-not-false
