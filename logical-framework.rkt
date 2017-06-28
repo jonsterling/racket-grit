@@ -26,6 +26,7 @@
  make-wf-Λ
  make-wf-$
  as-classifier
+ as-atomic-term
 
  subst
  
@@ -149,7 +150,7 @@
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
        (syntax/loc stx
-         (make-wf-Λ (in-scope (x ...) (as-atomic-term body))))])))
+         (make-wf-Λ (in-scope (x ...) body)))])))
 
 (struct TYPE ()
   #:transparent
