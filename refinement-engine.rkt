@@ -196,7 +196,7 @@
   (make-wf-$ x (map eta Γ)))
 
 (define/contract (Λ* Γ e)
-  (-> ctx? $? Λ?)
+  (-> ctx? any/c Λ?)
   (define xs (map car Γ))
   (make-wf-Λ (abstract xs e)))
 
