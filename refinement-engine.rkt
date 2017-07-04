@@ -14,7 +14,6 @@
 
 (module+ test (require rackunit))
 (provide
- subst
  unapply
  with-hyp
  define-rule
@@ -35,7 +34,7 @@
   (provide with-hyp unapply)
 
   (define/contract (ctx-split Γ x)
-    (-> ctx? free-name? (values ctx? =>? (-> Λ? ctx?)))
+    (-> ctx? free-name? (values ctx? =>? (-> any/c ctx?)))
     (let* ([p (λ (cell) (not (equal? x (car cell))))]
            [Γ0 (takef Γ p)]
            [Γ1 (cdr (dropf Γ p))])
@@ -44,7 +43,7 @@
        (ctx-ref Γ x)
        (λ (e)
          ctx-map
-         (λ (a) (instantiate (abstract (list x) a) (list e)))
+         (λ (a) (instantiate (abstract (list x) a) (list (as-term e))))
          Γ1))))
 
   (define-for-syntax ctx-split-expander
@@ -197,7 +196,7 @@
   (make-$ x (map eta Γ)))
 
 (define/contract (Λ* Γ e)
-  (-> ctx? $? Λ?)
+  (-> ctx? any/c Λ?)
   (define xs (map car Γ))
   (make-Λ (abstract xs e)))
 
@@ -208,17 +207,6 @@
 
 (define (raise-refinement-error msg goal)
   (raise (exn:fail:refinement msg (current-continuation-marks) goal)))
-
-; TODO: either delete this, or refactor define-rule to use it somehow to avoid duplication of logic
-(define-syntax (rule stx)
-  (syntax-parse stx
-    [(_ goal ((x:id subgoal) ...) extract)
-     (syntax/loc stx
-       (match-lambda
-         [(and (>> Γ J) goal)
-          (subgoals ((x subgoal) ...) (Λ* Γ extract))]
-         [other-goal
-          (raise-refinement-error (format "Inapplicable: ~a" other-goal) other-goal)]))]))
 
 (define-syntax (define-rule stx)
   (define (get-name h)
@@ -300,19 +288,6 @@
                ((apply orelse (cons t ts)) goal))])
          (t1 goal)))]))
 
-(define-syntax (subst stx)
-  (syntax-parse stx
-    [(_ ([x:id ex:expr] ...) e:expr)
-     (syntax/loc stx
-       (instantiate
-           (abstract (list x ...) e)
-         (list ex ...)))]
-    [(_ [x:id ex:expr] e:expr)
-     (syntax/loc stx
-       (instantiate
-           (abstract (list x) e)
-         (list ex)))]))
-
 
 (define/contract ((probe-at loc) goal)
   (-> source-location? tac/c)
@@ -384,12 +359,12 @@
 
     (split
      ([m (=> () (tm))]
-      [l (=> ([x (=> () (tm))]) (tm))]
-      [r (=> ([y (=> () (tm))]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
+      [l (=> ([x (tm)]) (tm))]
+      [r (=> ([y (tm)]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
      (tm))
 
     (lam
-     ([m (=> ([x (=> () (tm))]) (tm))])
+     ([m (=> ([x (tm)]) (tm))])
      (tm))
 
     (is-true
@@ -404,7 +379,7 @@
          goalTy)
         '())
     ()
-    ($ x))
+    x)
 
   (define-rule conj/R
     (>> Γ (is-true (conj p q)))
@@ -419,13 +394,12 @@
       (splice-context
        Γ0
        ([x0 (is-true p)] [x1 (is-true q)])
-       (Γ1 (pair ($ x0) ($ x1)))))
-    ([X (>> Γ/pq (is-true (r (pair ($ x0) ($ x1)))))])
-    (Λ* Γ
-        (subst
-         ([x0 (Λ () (fst ($ x)))]
-          [x1 (Λ () (snd ($ x)))])
-         ($* X Γ/pq))))
+       (Γ1 (pair x0 x1))))
+    ([X (>> Γ/pq (is-true (r (pair x0 x1))))])
+    (subst
+     ([x0 () (fst x)]
+      [x1 () (snd x)])
+     ($* X Γ/pq)))
 
   (define-rule disj/R/1
     (>> Γ (is-true (disj p q)))
@@ -440,11 +414,11 @@
   (define-rule (disj/L x)
     (>> (and Γ (with-hyp Γ0 x () (is-true (disj p q)) Γ1))
         (is-true (unapply r x)))
-    (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (Λ () (inl ($ y))))))
-    (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (Λ  () (inr ($ y))))))
-    ([L (>> (Γ/p x) (is-true (r (inl ($ x)))))]
-     [R (>> (Γ/q x) (is-true (r (inr ($ x)))))])
-    (split ($ x) (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))
+    (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (inl y))))
+    (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (inr y))))
+    ([L (>> (Γ/p x) (is-true (r (inl x))))]
+     [R (>> (Γ/q x) (is-true (r (inr x))))])
+    (split x (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))
 
 
   (define-rule (imp/R x)
@@ -512,6 +486,6 @@
           (proof-extract (script goal)))
         (Λ ()
            (lam (x)
-                (split ($ x)
-                       (b) (pair ($ b) (nil))
+                (split x
+                       (b) (pair b (nil))
                        (b) (nil))))))))))
