@@ -30,7 +30,7 @@
  as-term
 
  subst
- 
+
  ctx-set ctx-ref ctx-map
  ctx->tele tele->ctx
  chk-type
@@ -40,7 +40,7 @@
  chk-rtm
  chk-spine
  inf-rtm
- 
+
  ok-rtype?
  ok-type?
  ok-tele?
@@ -430,10 +430,9 @@
   (-> ctx? boolean?)
   ((ok-tele? '()) (ctx->tele ctx)))
 
-
 (define/contract (ctx-set ctx x ty)
   (-> ctx? free-name? any/c ctx?)
-  (dict-set ctx x ty))
+  (dict-set ctx x (as-classifier ty)))
 
 (define/contract (ctx-ref ctx x)
   (-> ctx? free-name? any/c)
