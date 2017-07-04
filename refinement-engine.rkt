@@ -430,7 +430,8 @@
     ([X (>> (Γ/p x) (is-true q))])
     (lam (x) ($* X (Γ/p x))))
 
-  (define-rule T/R (>> Γ (is-true (T)))
+  (define-rule T/R
+    (>> Γ (is-true (T)))
     ()
     (nil))
 
