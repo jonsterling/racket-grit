@@ -371,8 +371,10 @@
      ([p (=> () (prop))])
      (TYPE)))
 
+
   (define-rule (hyp x)
-    (>> (and Γ (with-hyp Γ0 x () tyx Γ1)) goalTy)
+    (>> (with-hyp Γ0 x () tyx Γ1)
+        goalTy)
     (if (not (equal? goalTy tyx))
         (raise-refinement-error
          (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy)
@@ -412,7 +414,7 @@
     (inr ($* X Γ)))
 
   (define-rule (disj/L x)
-    (>> (and Γ (with-hyp Γ0 x () (is-true (disj p q)) Γ1))
+    (>> (with-hyp Γ0 x () (is-true (disj p q)) Γ1)
         (is-true (unapply r x)))
     (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (inl y))))
     (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (inr y))))
@@ -424,7 +426,7 @@
   (define-rule (imp/R x)
     (>> Γ (is-true (imp p q)))
     (define (Γ/p x)
-      (ctx-set Γ x (=> () (is-true p))))
+      (ctx-set Γ x (is-true p)))
     ([X (>> (Γ/p x) (is-true q))])
     (lam (x) ($* X (Γ/p x))))
 
@@ -433,9 +435,8 @@
     (nil))
 
   (define-rule (F/L x)
-    (>>
-     (and Γ (with-hyp Γ0 x () (is-true (F)) Γ1))
-     (is-true p))
+    (>> (with-hyp Γ0 x () (is-true (F)) Γ1)
+        (is-true p))
     ()
     (nil))
 
