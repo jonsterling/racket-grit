@@ -444,11 +444,12 @@
   (define-syntax (lam/t stx)
     (syntax-parse stx
       [(_ (x:id) t:expr)
-       (syntax/loc stx
-         (let ([x (fresh (symbol->string 'x))])
-           (multicut
-            (imp/R x)
-            t)))]))
+       (with-syntax
+         ([var-name (symbol->string (syntax->datum #'x))])
+         (syntax/loc stx
+           (let ([x (fresh var-name)])
+             (multicut (imp/R x) t))))]))
+
 
   (define/contract (split/t x t1 t2)
     (-> free-name? tac/c tac/c
