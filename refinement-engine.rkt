@@ -390,7 +390,7 @@
     (pair ($* X Γ) ($* Y Γ)))
 
   (define-rule (conj/L x x0 x1)
-    (>> (and Γ (with-hyp Γ0 x () (is-true (conj p q)) Γ1))
+    (>> (with-hyp Γ0 x () (is-true (conj p q)) Γ1)
         (is-true (unapply r x)))
     (define Γ/pq
       (splice-context
