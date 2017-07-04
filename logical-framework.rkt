@@ -180,18 +180,19 @@
      (define var ($-var ap))
      (define spine ($-spine ap))
      (match-define (binder abs-var _) (bindings-accessor var))
-     (define (go arg)
-       (match-define (binder abs _) (bindings-accessor arg))
-       (abs arg frees i))
-     (raw-make-$ (abs-var var frees i) (map go spine)))
+     (raw-make-$
+      (abs-var var frees i)
+      (for/list ([arg spine])
+        (match-define (binder abs _) (bindings-accessor arg))
+        (abs arg frees i))))
    (λ (ap i new-exprs)
      (define var ($-var ap))
      (define spine ($-spine ap))
      (match-define (binder _ inst-var) (bindings-accessor var))
-     (define (go-arg arg)
-       (match-define (binder _ inst-arg) (bindings-accessor arg))
-       (inst-arg arg i new-exprs))
-     (define new-spine (map go-arg spine))
+     (define new-spine
+       (for/list ([arg spine])
+         (match-define (binder _ inst-arg) (bindings-accessor arg))
+         (inst-arg arg i new-exprs)))
      (match (inst-var var i new-exprs)
        [(bound-name ix) (raw-make-$ (bound-name ix) new-spine)]
        [(free-name sym hint) (raw-make-$ (free-name sym hint) new-spine)]
@@ -573,7 +574,7 @@
 
 (module+ test
   (=> ((a (fresh)) (b a)) b)
-  
+
   (let ([x (fresh "hello")])
     (check-equal?
      (=> ((a x) (b a)) b)
