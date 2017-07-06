@@ -174,6 +174,15 @@
    [Z (>> Γ (eq-ty (C z) (C z)))])
   (bool-if (plug z) (plug* X Γ/tt) (plug* X Γ/ff)))
 
+(define-rule (bool/L/eq-ty z)
+  (>> (and Γ (with-hyp Γ0 z  () (is-inh (bool)) Γ1))
+      (eq-ty (unapply A1 z) (unapply A2 z)))
+  (define Γ/tt (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (tt))))
+  (define Γ/ff (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (ff))))
+  ([X (>> Γ/tt (eq-ty (A1 (tt)) (A2 (tt))))]
+   [Y (>> Γ/ff (eq-ty (A1 (ff)) (A2 (ff))))])
+  (ax))
+
 
 (define-rule (dfun/R x)
   (>> Γ (is-inh (dfun A (y) By)))
@@ -230,6 +239,11 @@
   ([X (>> Γ (is-eq (eval e1) (eval e2) (eval A)))])
   (plug* X Γ))
 
+(define-rule eq-ty/direct-computation
+  (>> Γ (eq-ty A1 A2))
+  ([X (>> Γ (eq-ty (eval A1) (eval A2)))])
+  (plug* X Γ))
+
 (define-rule inh/direct-computation
   (>> Γ (is-inh A))
   ([X (>> Γ (is-inh (eval A)))])
@@ -260,10 +274,10 @@
       (multicut
        inh/direct-computation
        (hyp x))
-      ; below, I need a structural equality rule for types formed using bool-if;
-      ; probably, at this point we should switch modes to a universe membership
-      ; judgment, and then use the (un-written) structural equality rule for bool-if.
-      probe)
+      (multicut
+       (bool/L/eq-ty x)
+       (multicut eq-ty/direct-computation unit/F)
+       (multicut eq-ty/direct-computation bool/F)))
      bool/F))
   
   (define goal
