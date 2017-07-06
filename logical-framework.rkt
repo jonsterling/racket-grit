@@ -420,7 +420,7 @@
     (match* (xs tele)
       [('() '()) ctx]
       [((cons x xs) (cons sc tele))
-       (aux xs tele (ctx-set ctx x (instantiate sc (map car ctx))))]))
+       (aux xs tele (dict-set ctx x (instantiate sc (map car ctx))))]))
   (aux names tele '()))
 
 (define/contract (chk-ctx? ctx)
@@ -457,7 +457,7 @@
       [(cons sc tele)
        (let* ([x (fresh)]
               [ty (instantiate sc xs)]
-              [ctx (ctx-set ctx x ty)]
+              [ctx (dict-set ctx x ty)]
               [xs (snoc xs x)])
          (check-arity ctx ty)
          (aux ctx xs tele))]))
