@@ -1,9 +1,9 @@
 #lang info
-(define collection "racket-logical-framework")
+(define collection "grit")
 (define deps '("base"
                "rackunit-lib"))
 (define build-deps '("scribble-lib" "racket-doc"))
-(define scribblings '(("scribblings/racket-logical-framework.scrbl" ())))
+(define scribblings '(("scribblings/grit.scrbl" ())))
 (define pkg-desc "Description Here")
 (define version "0.0")
 (define pkg-authors '("David Christiansen" "Jon Sterling" "Corey Richardson"))
