@@ -138,14 +138,14 @@
 (define-rule dfun/F
   (>> Γ (eq-ty (dfun A1 (x1) B1x1) (dfun A2 (x2) B1x2)))
   ([X (>> Γ (eq-ty A1 A2))]
-   [Y (>> (append Γ `((,x1 . (arity () (is-inh ,A1)))))
+   [Y (>> (ctx-set Γ x1 (is-inh A1))
           (eq-ty B1x1 (subst ([x2 () x1]) B1x2)))])
   (ax))
 
 (define-rule dsum/F
   (>> Γ (eq-ty (dsum A1 (x1) B1x1) (dsum A2 (x2) B1x2)))
   ([X (>> Γ (eq-ty A1 A2))]
-   [Y (>> (append Γ `(((,x1 . (arity () (is-inh ,A1))))))
+   [Y (>> (ctx-set Γ x1 (is-inh A1))
           (eq-ty B1x1 (subst ([x2 () x1]) B1x2)))])
   (ax))
 
@@ -167,17 +167,17 @@
 (define-rule (bool/L z)
   (>> (and Γ (with-hyp Γ0 z  () (is-inh (bool)) Γ1))
       (is-inh (unapply C z)))
-  (define Γ/tt (append Γ0 `((,z . ,(arity () (is-inh (bool))))) (Γ1 (bind () (tt)))))
-  (define Γ/ff (append Γ0 `((,z . ,(arity () (is-inh (bool))))) (Γ1 (bind () (ff)))))
-  ([X (>> Γ/tt (is-inh (C (bind () (tt)))))]
-   [Y (>> Γ/ff (is-inh (C (bind () (ff)))))]
+  (define Γ/tt (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (tt))))
+  (define Γ/ff (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (ff))))
+  ([X (>> Γ/tt (is-inh (C (tt))))]
+   [Y (>> Γ/ff (is-inh (C (ff))))]
    [Z (>> Γ (eq-ty (C z) (C z)))])
   (bool-if (plug z) (plug* X Γ/tt) (plug* X Γ/ff)))
 
 
 (define-rule (dfun/R x)
   (>> Γ (is-inh (dfun A (y) By)))
-  (define (ΓA x) (append Γ `((,x . ,(arity () (is-inh A))))))
+  (define (ΓA x) (ctx-set Γ x (is-inh A)))
   ([X (>> (ΓA x) (is-inh (subst ([y () x]) By)))]
    [Y (>> Γ (eq-ty A A))])
   (lam (x) (plug* X (ΓA x))))
@@ -186,7 +186,8 @@
   (>> Γ (is-inh (dsum A (x) Bx)))
   ([X (>> Γ (is-inh A))]
    [Y (>> Γ (is-inh (subst ([x () (plug* X Γ)]) Bx)))]
-   [Z (>> (append Γ `((,x . ,(arity () (is-inh A))))) (eq-ty Bx Bx))])
+   [Z (>> (ctx-set Γ x (is-inh A))
+          (eq-ty Bx Bx))])
   (pair (plug* X Γ) (plug* Y Γ)))
 
 
@@ -207,7 +208,7 @@
 
 (define-rule (lam/eq x)
   (>> Γ (is-eq (lam (x1) e1x1) (lam (x2) e2x2) (dfun A (x3) Bx3)))
-  (define (ΓA x) (append Γ `((,x . ,(arity () (is-inh A))))))
+  (define (ΓA x) (ctx-set Γ x (is-inh A)))
   ([X (>> (ΓA x)
           (is-eq
            (subst ([x1 () x]) e1x1)
@@ -220,7 +221,8 @@
   (>> Γ (is-eq (pair e10 e20) (pair e11 e21) (dsum A (x) Bx)))
   ([X (>> Γ (is-eq e10 e11 A))]
    [Y (>> Γ (is-eq e20 e21 (subst ([x () e10]) Bx)))]
-   [Z (>> (append Γ `((,x . ,(arity () (is-inh A))))) (eq-ty Bx Bx))])
+   [Z (>> (ctx-set Γ x (is-inh A))
+          (eq-ty Bx Bx))])
   (ax))
 
 (define-rule eq/direct-computation
