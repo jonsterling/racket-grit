@@ -288,10 +288,8 @@
   (λ (stx)
     (syntax-parse stx
       [(_ (x:id ty:expr) ...)
-       ; What follows doesn't seem right! where is x-var used?
-       (with-syntax ([(x-var ...) (syntax->datum #'(x ...))])
-         (syntax/loc stx
-           (list (cons (free-name 'x (symbol->string 'x)) ty) ...)))])))
+       (syntax/loc stx
+         (list (cons (free-name 'x (symbol->string 'x)) ty) ...))])))
 
 (define-match-expander signature sig-expander sig-expander)
 
