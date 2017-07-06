@@ -64,7 +64,7 @@
               (λ (ex . exs)
                 (instantiate
                     (abstract (list x ...) e)
-                  (cons ex exs))))
+                  (cons (as-term ex) (map as-term exs)))))
             f))])))
 
   (define-match-expander with-hyp
