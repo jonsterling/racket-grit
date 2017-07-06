@@ -338,10 +338,10 @@
     #:literals (arity)
     ;; TODO: Add another pattern here to add implicit Pi when not used directly?
     (pattern
-     (binder () result)
+     (arity () result)
      #:attr (arg 1) '())
     (pattern
-     (binder ((arg:id type) ...) result))))
+     (arity ((arg:id type) ...) result))))
 
 
 
