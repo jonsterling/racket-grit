@@ -20,6 +20,7 @@
  define-rule
  probe
  multicut
+ orelse
  id-tac
  >> plug* bind*
  raise-refinement-error)
