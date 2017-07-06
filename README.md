@@ -1,3 +1,4 @@
-racket-logical-framework
+GRIT
 ========================
-README text here.
+
+The kernel around which a PRL forms.
