@@ -34,7 +34,7 @@
   (provide with-hyp unapply)
 
   (define/contract (ctx-split Γ x)
-    (-> ctx? free-name? (values ctx? binder? (-> any/c ctx?)))
+    (-> ctx? free-name? (values ctx? arity? (-> any/c ctx?)))
     (let* ([p (λ (cell) (not (equal? x (car cell))))]
            [Γ0 (takef Γ p)]
            [Γ1 (cdr (dropf Γ p))])
@@ -51,7 +51,7 @@
       (syntax-parse stx
         [(_ Γ0:expr x:expr ((y:id B:expr) ...) A:expr Γ1:expr)
          (syntax/loc stx
-           (app (λ (Γ) (ctx-split Γ x)) Γ0 (binder ((y B) ...) A) Γ1))])))
+           (app (λ (Γ) (ctx-split Γ x)) Γ0 (arity ((y B) ...) A) Γ1))])))
 
   (define-for-syntax unapply-hyp-expander
     (λ (stx)
@@ -92,10 +92,10 @@
   (provide >> subgoals >>? >>-ty
            proof-state proof-state? >: complete-proof? proof-extract)
 
-  ;; This is a wrapper around a goal / binder type which keeps a cache of names for assumptions,
+  ;; This is a wrapper around a goal which keeps a cache of names for assumptions,
   ;; which can then be used when unpacking. The result of this is that we can have user-supplied
   ;; names in tactic scripts, even though naively that doesn't make scope-sense when thinking
-  ;; of goals as binder types.
+  ;; of goals as arities.
   (struct >> (names ty)
     #:omit-define-syntaxes
     #:extra-constructor-name make->>
@@ -130,12 +130,12 @@
     (match-define (proof-state tele output) state)
     (define xs (map (λ (g) (fresh)) tele))
     (values
-     (tele->ctx xs tele)
+     (telescope->ctx xs tele)
      (instantiate output xs)))
 
   (define (pack-proof-state subgoals output)
     (let ([xs (map car subgoals)])
-      (proof-state (ctx->tele subgoals) (abstract xs output))))
+      (proof-state (ctx->telescope subgoals) (abstract xs output))))
 
   (define-syntax (subgoals stx)
     (syntax-parse stx
@@ -146,15 +146,15 @@
           (in-scope (X ...) o)))]))
 
   (define/contract (pack-goal ctx rty)
-    (-> ctx? rtype? >>?)
+    (-> ctx? sort? >>?)
     (let ([xs (map car ctx)])
-      (make->> xs (make-binder (ctx->tele ctx) (abstract xs rty)))))
+      (make->> xs (make-arity (ctx->telescope ctx) (abstract xs rty)))))
 
   (define/contract (unpack-goal goal)
-    (-> >>? (values ctx? rtype?))
+    (-> >>? (values ctx? sort?))
     (define xs (>>-names goal))
     (define ty (>>-ty goal))
-    (values (tele->ctx xs (binder-domain ty)) (instantiate (binder-codomain ty) xs)))
+    (values (telescope->ctx xs (arity-domain ty)) (instantiate (arity-codomain ty) xs)))
 
   (define-match-expander >>
     (λ (stx)
@@ -183,11 +183,11 @@
 (require 'sequent)
 
 (define/contract (eta cell)
-  (-> (cons/c free-name? binder?) bind?)
+  (-> (cons/c free-name? arity?) bind?)
   (match cell
-    [(cons x (and (app binder-domain tele) (app binder-codomain cod)))
+    [(cons x (and (app arity-domain tele) (app arity-codomain cod)))
      (let* ([xs (map (λ (sc) (fresh)) tele)]
-            [ctx (tele->ctx xs tele)])
+            [ctx (telescope->ctx xs tele)])
        (make-bind
         (abstract xs (make-plug x (map eta ctx)))))]))
 
@@ -311,23 +311,23 @@
 
 (module+ test
   (define-signature L
-    (prop () (TYPE))
+    (prop () (SORT))
 
-    (tm () (TYPE))
+    (tm () (SORT))
 
     (conj
-     ([p (binder () (prop))]
-      [q (binder () (prop))])
+     ([p (arity () (prop))]
+      [q (arity () (prop))])
      (prop))
 
     (disj
-     ([p (binder () (prop))]
-      [q (binder () (prop))])
+     ([p (arity () (prop))]
+      [q (arity () (prop))])
      (prop))
 
     (imp
-     ([p (binder () (prop))]
-      [q (binder () (prop))])
+     ([p (arity () (prop))]
+      [q (arity () (prop))])
      (prop))
 
     (T () (prop))
@@ -337,39 +337,39 @@
     (nil () (tm))
 
     (pair
-     ([m (binder () (tm))]
-      [n (binder () (tm))])
+     ([m (arity () (tm))]
+      [n (arity () (tm))])
      (tm))
 
     (fst
-     ([m (binder () (tm))])
+     ([m (arity () (tm))])
      (tm))
 
     (snd
-     ([m (binder () (tm))])
+     ([m (arity () (tm))])
      (tm))
 
     (inl
-     ([m (binder () (tm))])
+     ([m (arity () (tm))])
      (tm))
 
     (inr
-     ([m (binder () (tm))])
+     ([m (arity () (tm))])
      (tm))
 
     (split
-     ([m (binder () (tm))]
-      [l (binder ([x (tm)]) (tm))]
-      [r (binder ([y (tm)]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
+     ([m (arity () (tm))]
+      [l (arity ([x (tm)]) (tm))]
+      [r (arity ([y (tm)]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
      (tm))
 
     (lam
-     ([m (binder ([x (tm)]) (tm))])
+     ([m (arity ([x (tm)]) (tm))])
      (tm))
 
     (is-true
-     ([p (binder () (prop))])
-     (TYPE)))
+     ([p (arity () (prop))])
+     (SORT)))
 
 
   (define-rule (hyp x)
@@ -445,7 +445,7 @@
     (syntax-parse stx
       [(_ (x:id) t:expr)
        (with-syntax
-         ([var-name (symbol->string (syntax->datum #'x))])
+           ([var-name (symbol->string (syntax->datum #'x))])
          (syntax/loc stx
            (let ([x (fresh var-name)])
              (multicut (imp/R x) t))))]))
@@ -488,7 +488,7 @@
                         (split/t x (pair/t (hyp x) T/R) (orelse T/R (F/L x)))))])
           (proof-extract (script goal)))
         (bind ()
-           (lam (x)
-                (split x
-                       (b) (pair b (nil))
-                       (b) (nil))))))))))
+              (lam (x)
+                   (split x
+                          (b) (pair b (nil))
+                          (b) (nil))))))))))
