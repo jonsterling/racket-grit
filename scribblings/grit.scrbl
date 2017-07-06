@@ -1,13 +1,13 @@
 #lang scribble/manual
 @require[scribble/bnf]
-@require[@for-label[racket-logical-framework
+@require[@for-label[grit
                     racket/base
                     racket/contract]]
 
-@title{racket-logical-framework}
+@title{grit}
 @author{David Christiansen and Jon Sterling}
 
-@defmodule[racket-logical-framework]
+@defmodule[grit]
 
 This is an implementation of a variant of the Edinburgh Logical Framework, namely Jason Reed's @bold{Tiny LF}. Tiny LF is a further development of Canonical LF to have a more rigid and syntactic notion of type suitable for use as a syntactic framework, along the lines of dependently-sorted abstract syntax. Moreover, Tiny LF eschews the classic distinction between signature and context.
 
