@@ -16,6 +16,7 @@
 (provide
  unapply
  with-hyp
+ splice-context
  define-rule
  probe
  multicut
