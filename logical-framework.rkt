@@ -62,11 +62,10 @@
      (define sc (arity-codomain pi))
      (match-define (scope vl body) sc)
      (define temps (fresh-print-names vl))
-     (fprintf port "{")
+     (fprintf port "(arity ")
      (write-proc/telescope tl port mode)
-     (fprintf port "}")
      (parameterize ([used-names (append temps (used-names))])
-       (fprintf port " --> ~a" body))))
+       (fprintf port " ~a)" body))))
 
   #:property prop:bindings
   (bindings-support

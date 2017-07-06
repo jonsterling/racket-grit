@@ -186,13 +186,15 @@
 (define (write-proc/telescope cells port mode)
   (define len (length cells))
   (define temps (fresh-print-names len))
+  (fprintf port "(")
   (for/list ([i (in-range 0 len)]
              [x temps]
              [cell cells])
     (define slice (take temps i))
-    (fprintf port "~a:" x)
+    (fprintf port "[~a " x)
     (parameterize ([used-names (append slice (used-names))])
-      (fprintf port "~a~a" (scope-body cell) (if (< i (- len 1)) ", " "")))))
+      (fprintf port "~a]~a" (scope-body cell) (if (< i (- len 1)) " " ""))))
+  (fprintf port ")"))
 
 (define bindings/telescope
   (bindings-support
