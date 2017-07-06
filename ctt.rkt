@@ -3,8 +3,7 @@
 (require
   (for-syntax
    racket/base
-   syntax/parse
-   syntax/srcloc)
+   syntax/parse)
   racket/match
   "locally-nameless.rkt"
   "logical-framework.rkt"
