@@ -1,6 +1,10 @@
 #lang racket/base
 
 (require
+  (for-syntax
+   racket/base
+   syntax/parse
+   syntax/srcloc)
   racket/match
   "locally-nameless.rkt"
   "logical-framework.rkt"
@@ -273,33 +277,66 @@
      (bool/L/inh x)
      (bool/L/eq-ty x)))
 
-  (define (if/t x t1 t2)
-    (multicut
-     (bool/L x)
-     t1
-     t2))
+
+  (define-syntax (match-goal stx)
+    (syntax-parse stx
+      [(_ [p:expr m:expr] ...)
+       (syntax/loc stx
+         (λ (goal)
+           ((match goal
+              [p m]
+              ...)
+            goal)))]))
+
 
   (define (compute-and t)
     (multicut
      direct-computation
      t))
+
+
+  (define (try t)
+    (orelse t id-tac))
+
+  ; a crappy auto tactic, as a demonstration. A serious one would look a bit different, and do some very
+  ; clever stuff about neutral terms.
+  (define auto
+    (compute-and
+     (match-goal
+      [(>> Γ (eq-ty (bool) (bool)))
+       bool/F]
+      [(>> Γ (eq-ty (unit) (unit)))
+       unit/F]
+      [(>> Γ (eq-ty (bool-if (plug x) _ _) _))
+       (multicut (bool/L/eq-ty x) (try auto) (try auto))])))
+
+ 
+  (define-syntax (lam/t stx)
+    (syntax-parse stx
+      [(_ (x:id) tac:expr)
+       (syntax/loc stx
+         (let ([x (fresh)])
+           (multicut
+            (dfun/R x)
+            tac
+            auto)))]))
+
   
+  (define (if/t x t1 t2)
+    (multicut (bool/L x) t1 t2 auto))
+ 
   (define my-script
-    (multicut
-     (multicut
-      (dfun/R x)
-      (if/t
-       x
-       (compute-and unit/R)
-       (compute-and (hyp x))))
+    (lam/t
+     (x)
      (if/t
       x
-      (compute-and unit/F)
-      (compute-and bool/F))
-     bool/F))
+      (compute-and unit/R)
+      (compute-and (hyp x)))))
   
   (define goal
-    (>> null (is-inh (dfun (bool) (x) (bool-if x (unit) (bool))))))
+    (>> null
+        (is-inh (dfun (bool) (x) (bool-if x (unit) (bool))))))
+
   (my-script goal))
 
 ; TODO: define left rules
