@@ -73,14 +73,14 @@
    (λ (pi frees i)
      (define tl (arity-domain pi))
      (define sc (arity-codomain pi))
-     (match-define(bindings-support abs-tl _) bindings/telescope)
-     (match-define(bindings-support abs-sc _) (bindings-accessor sc))
+     (match-define (bindings-support abs-tl _) bindings/telescope)
+     (match-define (bindings-support abs-sc _) (bindings-accessor sc))
      (raw-make-arity (abs-tl tl frees i) (abs-sc sc frees i)))
    (λ (pi i new-exprs)
      (define tl (arity-domain pi))
      (define sc (arity-codomain pi))
-     (match-define(bindings-support _ inst-tl) bindings/telescope)
-     (match-define(bindings-support _ inst-sc) (bindings-accessor sc))
+     (match-define (bindings-support _ inst-tl) bindings/telescope)
+     (match-define (bindings-support _ inst-sc) (bindings-accessor sc))
      (raw-make-arity (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
 
   #:methods gen:equal+hash
@@ -126,11 +126,11 @@
   (bindings-support
    (λ (e frees i)
      (define sc (bind-scope e))
-     (match-define(bindings-support abs _) (bindings-accessor sc))
+     (match-define (bindings-support abs _) (bindings-accessor sc))
      (raw-make-bind (abs sc frees i)))
    (λ (e i new-exprs)
      (define sc (bind-scope e))
-     (match-define(bindings-support _ inst) (bindings-accessor sc))
+     (match-define (bindings-support _ inst) (bindings-accessor sc))
      (raw-make-bind (inst sc i new-exprs))))
 
 
@@ -182,11 +182,11 @@
    (λ (ap frees i)
      (define var (plug-var ap))
      (define spine (plug-spine ap))
-     (match-define(bindings-support abs-var _) (bindings-accessor var))
+     (match-define (bindings-support abs-var _) (bindings-accessor var))
      (raw-make-plug
       (abs-var var frees i)
       (for/list ([arg spine])
-        (match-define(bindings-support abs _) (bindings-accessor arg))
+        (match-define (bindings-support abs _) (bindings-accessor arg))
         (abs arg frees i))))
    (λ (ap i new-exprs)
      (define var (plug-var ap))
@@ -194,7 +194,7 @@
      (match-define (bindings-support _ inst-var) (bindings-accessor var))
      (define new-spine
        (for/list ([arg spine])
-         (match-define(bindings-support _ inst-arg) (bindings-accessor arg))
+         (match-define (bindings-support _ inst-arg) (bindings-accessor arg))
          (inst-arg arg i new-exprs)))
      (match (inst-var var i new-exprs)
        [(bound-name ix) (raw-make-plug (bound-name ix) new-spine)]
