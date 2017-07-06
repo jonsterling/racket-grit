@@ -13,63 +13,63 @@ This is an implementation of a variant of the Edinburgh Logical Framework, namel
 
 @BNF[
  (list
-  @nonterm{type}
-  @BNF-seq[@litchar{Π} @nonterm{tele} @nonterm{rtype}])
+  @nonterm{arity}
+  @BNF-seq[@litchar{(arity} @nonterm{telescope} @nonterm{sort}@litchar{)}])
  (list
-  @nonterm{tele}
-  @kleenestar[@BNF-seq[@litchar{(} @nonterm{id} @litchar{:} @nonterm{type} @litchar{)}]])
+  @nonterm{telescope}
+  @BNF-seq[@litchar{(}@kleenestar[@BNF-seq[@litchar{[} @nonterm{id} @nonterm{arity} @litchar{]}]]@litchar{)}])
  (list
-  @nonterm{rtype}
-  @litchar{TYPE}
-  @nonterm{rtm})
+  @nonterm{sort}
+  @litchar{(SORT)}
+  @nonterm{atomic-term})
  (list
-  @nonterm{rtm}
-  @BNF-seq[@nonterm{id} @litchar{[} @nonterm{spine} @litchar{]}])
+  @nonterm{atomic-term}
+  @BNF-seq[@litchar{(plug}@nonterm{id} @nonterm{spine} @litchar{)}])
  (list
   @nonterm{spine}
-  @kleenestar[@nonterm{ntm}])
+  @kleenestar[@nonterm{term}])
  (list
-  @nonterm{ntm}
-  @BNF-seq[@nonterm{Λ} @kleenestar[@nonterm{id}] @nonterm{rtm}])]
+  @nonterm{term}
+  @BNF-seq[@litchar{(bind} @litchar{(}@kleenestar[@nonterm{id}]@litchar{)} @nonterm{atomic-term}@litchar{)}])]
 
-The syntax is divided into @emph{proper types} (dependent function types), @emph{atomic types}, @emph{normal terms} (lambda abstractions) and @emph{atomic terms}.
+The syntax is divided into @emph{arities} (dependent function types), @emph{sorts}, @emph{terms} (lambda abstractions) and @emph{atomic terms}.
 
 @section{Syntax}
 
-@defproc[(TYPE) ?rtype]{
- The atomic type of types.
+@defproc[(SORT) ?rtype]{
+ The sort of sorts.
 }
 
-@defform[(Π ((id type) ...) rty) #:contracts ([type Π?] [rty rtype?])]{
- Constructs a dependent function type from a telescope and an atomic type which has the variables of the telescope bound.
+@defform[(arity ([id ar] ...) tau) #:contracts ([ar arity?] [tau sort?])]{
+ Constructs an arity from a telescope and a sort which has the variables of the telescope bound.
 }
 
-@defform[(Λ (id ...) rtm) #:contracts ([rtm $?])]{
- Constructs a lambda abstraction (normal term) from a list of identifiers, and an atomic term which has those identifiers bound.
+@defform[(bind (id ...) r) #:contracts ([r atomic-term?])]{
+ Constructs a term, binding a list of identifiers in an atomic term.
 }
 
-@defform[($ x ntm ...) #:contracts ([x free-name?] [ntm Λ?])]{
- Constructs an application expression (atomic term) from a free variable and a spine of normal terms.
+@defform[(plug x m ...) #:contracts ([x free-name?] [m term?])]{
+ Constructs an application expression (atomic term) from a free variable and a spine of terms.
 }
 
 @section{Typechecking}
 
-@defproc[(chk-type [ctx ctx?] [ty Π?]) any/c]{
- Checks whether a proper type expression is valid relative to context @racket[ctx].
+@defproc[(check-arity [ctx ctx?] [ar arity?]) any/c]{
+ Checks whether an arity is valid relative to context @racket[ctx].
 }
 
-@defproc[(chk-rtype [ctx ctx?] [rty rtype?]) any/c]{
- Checks whether an atomic type expression is valid relative to context @racket[ctx].
+@defproc[(check-sort [ctx ctx?] [tau sort?]) any/c]{
+ Checks whether a sort is valid relative to context @racket[ctx].
 }
 
-@defproc[(inf-rtm [ctx ctx?] [rtm $?]) rtype?]{
- Infers the type of an atomic type expression @racket[rtm] relative to context @racket[ctx].
+@defproc[(infer-atomic-term [ctx ctx?] [r atomic-term?]) sort?]{
+ Infers the sort of an atomic term @racket[r] relative to context @racket[ctx].
 }
 
-@defproc[(chk-rtm [ctx ctx?] [rtm $?] [rty rtype?]) any/c]{
- Checks whether an atomic term expression @racket[rtm] has atomic type @racket[rty] relative to @racket[ctx].
+@defproc[(check-atomic-term [ctx ctx?] [r atomic-term?] [tau sort?]) any/c]{
+ Checks whether an atomic term @racket[r] has sort @racket[tau] relative to @racket[ctx].
 }
 
-@defproc[(chk-ntm [ctx ctx?] [ntm Λ?] [ty Π?]) any/c]{
- Checks whether a normal term expression @racket[ntm] has proper type @racket[ty] relative to @racket[ctx].
+@defproc[(check-term [ctx ctx?] [m term?] [ar arity?]) any/c]{
+ Checks whether a term expression @racket[m] has arity @racket[ar] relative to @racket[ctx].
 }

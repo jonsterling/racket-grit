@@ -21,7 +21,7 @@
  fresh-print-names
 
  (contract-out
-  (struct binder
+  (struct bindings-support
     ((abs (-> any/c (listof free-name?) integer? any/c))
      (inst (-> any/c integer? (listof bindings?) any/c))))
 
@@ -82,22 +82,21 @@
           (cons x (fresh-print-names (sub1 n)))))))
 
 
-(struct binder (abs inst) #:transparent)
+(struct bindings-support (abs inst) #:transparent)
 
 (define-values (prop:bindings has-prop:bindings? bindings-accessor)
   (make-struct-type-property
    'bindings
    (λ (v _)
-     (and (binder? v) v))))
+     (and (bindings-support? v) v))))
 
 (define (bindings? v)
   (has-prop:bindings? v))
 
-
 (struct bound-name (index)
   #:transparent
   #:property prop:bindings
-  (binder
+  (bindings-support
    (λ (expr frees i) expr)
    (λ (expr i new-exprs)
      (define j (- (bound-name-index expr) i))
@@ -121,7 +120,7 @@
 
 (struct free-name (sym hint)
   #:property prop:bindings
-  (binder
+  (bindings-support
    (λ (expr frees i)
      (let ((j (index-of frees expr (lambda (x y) (eqv? (free-name-sym x) (free-name-sym y))))))
        (if j (bound-name (+ i j)) expr)))
@@ -162,16 +161,16 @@
        (fprintf port "#<sc ⟨~a⟩.~a>" binder (scope-body sc))))]
 
   #:property prop:bindings
-  (binder
+  (bindings-support
    (λ (sc frees i)
      (define valence (scope-valence sc))
      (define body (scope-body sc))
-     (match-define (binder abs _) (bindings-accessor body))
+     (match-define (bindings-support abs _) (bindings-accessor body))
      (scope valence (abs body frees (+ i valence))))
    (λ (sc i new-exprs)
      (define valence (scope-valence sc))
      (define body (scope-body sc))
-     (match-define (binder _ inst) (bindings-accessor body))
+     (match-define (bindings-support _ inst) (bindings-accessor body))
      (scope valence (inst body (+ i valence) new-exprs))))
   #:methods gen:equal+hash
   ((define (equal-proc sc1 sc2 rec-equal?)
@@ -187,24 +186,26 @@
 (define (write-proc/telescope cells port mode)
   (define len (length cells))
   (define temps (fresh-print-names len))
+  (fprintf port "(")
   (for/list ([i (in-range 0 len)]
              [x temps]
              [cell cells])
     (define slice (take temps i))
-    (fprintf port "~a:" x)
+    (fprintf port "[~a " x)
     (parameterize ([used-names (append slice (used-names))])
-      (fprintf port "~a~a" (scope-body cell) (if (< i (- len 1)) ", " "")))))
+      (fprintf port "~a]~a" (scope-body cell) (if (< i (- len 1)) " " ""))))
+  (fprintf port ")"))
 
 (define bindings/telescope
-  (binder
+  (bindings-support
    (λ (cells frees i)
      (define (go cell)
-       (match-define (binder abs _) (bindings-accessor cell))
+       (match-define (bindings-support abs _) (bindings-accessor cell))
        (abs cell frees i))
      (map go cells))
    (λ (cells i new-exprs)
      (define (go cell)
-       (match-define (binder _ inst) (bindings-accessor cell))
+       (match-define (bindings-support _ inst) (bindings-accessor cell))
        (inst cell i new-exprs))
      (map go cells))))
 
@@ -216,7 +217,7 @@
        #:pre (sc vals) (= (scope-valence sc) (length vals))
        (result any/c))
   (define open-expr (scope-body sc))
-  (match-let ([(binder _ inst) (bindings-accessor open-expr)])
+  (match-let ([(bindings-support _ inst) (bindings-accessor open-expr)])
     (inst open-expr 0 vals)))
 
 
@@ -227,7 +228,7 @@
         (frees)
         (and/c scope? (λ (r) (= (scope-valence r) (length frees))))))
   (define open-expr
-    (match-let ([(binder abs _) (bindings-accessor closed-expr)])
+    (match-let ([(bindings-support abs _) (bindings-accessor closed-expr)])
       (abs closed-expr frees 0)))
   (scope (length frees) open-expr))
 

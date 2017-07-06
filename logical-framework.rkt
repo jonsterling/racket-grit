@@ -19,237 +19,239 @@
 
 
 (provide
- TYPE => Λ $
- =>? Λ? $? rtype? ctx?
+ SORT arity bind plug
+ arity? bind? plug? sort? ctx?
  define-signature telescope
- make-=> =>-domain =>-codomain
- make-Λ
- make-$
- as-classifier
+ make-arity arity-domain arity-codomain
+ make-bind
+ make-plug
+ as-arity
  as-atomic-term
  as-term
 
  subst
 
  ctx-set ctx-ref ctx-map
- ctx->tele tele->ctx
- chk-type
- chk-rtype
- chk-tele
- chk-ntm
- chk-rtm
- chk-spine
- inf-rtm
+ ctx->telescope telescope->ctx
 
- ok-rtype?
- ok-type?
- ok-tele?
+ check-arity
+ check-sort
+ check-telescope
+ check-term
+ check-atomic-term
+ chk-spine
+ infer-atomic-term
+
+ ok-sort?
+ ok-arity?
+ ok-telescope?
  ok-spine?
- ok-ntm?
- ok-rtm?)
+ ok-term?
+ ok-atomic-term?)
 
 (module+ test
   (require rackunit))
 
 
-(struct => (domain codomain)
+(struct arity (domain codomain)
   #:omit-define-syntaxes
-  #:extra-constructor-name raw-make-=>
+  #:extra-constructor-name raw-make-arity
   #:methods gen:custom-write
   ((define (write-proc pi port mode)
-     (define tl (=>-domain pi))
-     (define sc (=>-codomain pi))
+     (define tl (arity-domain pi))
+     (define sc (arity-codomain pi))
      (match-define (scope vl body) sc)
      (define temps (fresh-print-names vl))
-     (fprintf port "{")
+     (fprintf port "(arity ")
      (write-proc/telescope tl port mode)
-     (fprintf port "}")
      (parameterize ([used-names (append temps (used-names))])
-       (fprintf port " --> ~a" body))))
+       (fprintf port " ~a)" body))))
 
   #:property prop:bindings
-  (binder
+  (bindings-support
    (λ (pi frees i)
-     (define tl (=>-domain pi))
-     (define sc (=>-codomain pi))
-     (match-define (binder abs-tl _) bindings/telescope)
-     (match-define (binder abs-sc _) (bindings-accessor sc))
-     (raw-make-=> (abs-tl tl frees i) (abs-sc sc frees i)))
+     (define tl (arity-domain pi))
+     (define sc (arity-codomain pi))
+     (match-define (bindings-support abs-tl _) bindings/telescope)
+     (match-define (bindings-support abs-sc _) (bindings-accessor sc))
+     (raw-make-arity (abs-tl tl frees i) (abs-sc sc frees i)))
    (λ (pi i new-exprs)
-     (define tl (=>-domain pi))
-     (define sc (=>-codomain pi))
-     (match-define (binder _ inst-tl) bindings/telescope)
-     (match-define (binder _ inst-sc) (bindings-accessor sc))
-     (raw-make-=> (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
+     (define tl (arity-domain pi))
+     (define sc (arity-codomain pi))
+     (match-define (bindings-support _ inst-tl) bindings/telescope)
+     (match-define (bindings-support _ inst-sc) (bindings-accessor sc))
+     (raw-make-arity (inst-tl tl i new-exprs) (inst-sc sc i new-exprs))))
 
   #:methods gen:equal+hash
   ((define (equal-proc pi1 pi2 rec-equal?)
      (and
-      (rec-equal? (=>-domain pi1) (=>-domain pi2))
-      (rec-equal? (=>-codomain pi1) (=>-codomain pi2))))
+      (rec-equal? (arity-domain pi1) (arity-domain pi2))
+      (rec-equal? (arity-codomain pi1) (arity-codomain pi2))))
    (define (hash-proc pi rec-hash)
      (fxxor
-      (rec-hash (=>-domain pi))
-      (rec-hash (=>-codomain pi))))
+      (rec-hash (arity-domain pi))
+      (rec-hash (arity-codomain pi))))
    (define (hash2-proc pi rec-hash2)
      (fxxor
-      (rec-hash2 (=>-domain pi))
-      (rec-hash2 (=>-codomain pi))))))
+      (rec-hash2 (arity-domain pi))
+      (rec-hash2 (arity-codomain pi))))))
 
-(define-match-expander =>
+(define-match-expander arity
   (λ (stx)
     (syntax-parse stx
       [(_ ((x:id e:expr) ...) cod:expr)
        (syntax/loc stx
-         (? =>? (and (app =>-domain (telescope (x e) ...))
-                     (app =>-codomain (in-scope (x ...) cod)))))]))
+         (? arity? (and (app arity-domain (telescope (x e) ...))
+                     (app arity-codomain (in-scope (x ...) cod)))))]))
   (λ (stx)
     (syntax-parse stx
       [(_ ((x:id e:expr) ...) cod:expr)
        (syntax/loc stx
-         (make-=> (telescope (x e) ...) (in-scope (x ...) cod)))])))
+         (make-arity (telescope (x e) ...) (in-scope (x ...) cod)))])))
 
-(struct Λ (scope)
+(struct bind (scope)
   #:omit-define-syntaxes
-  #:extra-constructor-name raw-make-Λ
+  #:extra-constructor-name raw-make-bind
   #:methods gen:custom-write
   ((define (write-proc e port mode)
-     (define sc (Λ-scope e))
+     (define sc (bind-scope e))
      (define temps (fresh-print-names (scope-valence sc)))
      (define binder
        (string-join (for/list ([x temps]) (format "~a" x)) " "))
      (parameterize ([used-names (append temps (used-names))])
-       (fprintf port "(Λ (~a) ~a)" binder (scope-body sc)))))
+       (fprintf port "(bind (~a) ~a)" binder (scope-body sc)))))
 
   #:property prop:bindings
-  (binder
+  (bindings-support
    (λ (e frees i)
-     (define sc (Λ-scope e))
-     (match-define (binder abs _) (bindings-accessor sc))
-     (raw-make-Λ (abs sc frees i)))
+     (define sc (bind-scope e))
+     (match-define (bindings-support abs _) (bindings-accessor sc))
+     (raw-make-bind (abs sc frees i)))
    (λ (e i new-exprs)
-     (define sc (Λ-scope e))
-     (match-define (binder _ inst) (bindings-accessor sc))
-     (raw-make-Λ (inst sc i new-exprs))))
+     (define sc (bind-scope e))
+     (match-define (bindings-support _ inst) (bindings-accessor sc))
+     (raw-make-bind (inst sc i new-exprs))))
 
 
   #:methods gen:equal+hash
   ((define (equal-proc lam1 lam2 rec-equal?)
-     (rec-equal? (Λ-scope lam1) (Λ-scope lam2)))
+     (rec-equal? (bind-scope lam1) (bind-scope lam2)))
    (define (hash-proc lam rec-hash)
-     (rec-hash (Λ-scope lam)))
+     (rec-hash (bind-scope lam)))
    (define (hash2-proc lam rec-hash2)
-     (rec-hash2 (Λ-scope lam)))))
+     (rec-hash2 (bind-scope lam)))))
 
-(define-match-expander Λ
+(define-match-expander bind
   (λ (stx)
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
        (syntax/loc stx
-         (? Λ? (app Λ-scope (in-scope (x ...) body))))]))
+         (? bind? (app bind-scope (in-scope (x ...) body))))]))
   (λ (stx)
     (syntax-parse stx
       [(_ (x:id ...) body:expr)
        (syntax/loc stx
-         (make-Λ (in-scope (x ...) body)))])))
+         (make-bind (in-scope (x ...) body)))])))
 
-(struct TYPE ()
+(struct SORT ()
   #:transparent
   #:methods gen:custom-write
   ((define (write-proc ty port mode)
      (fprintf port "(TYPE)")))
   #:property prop:bindings
-  (binder
+  (bindings-support
    (λ (ty frees i) ty)
    (λ (ty i new-exprs) ty)))
 
-(struct $ (var spine)
+(struct plug (var spine)
   #:omit-define-syntaxes
-  #:extra-constructor-name raw-make-$
+  #:extra-constructor-name raw-make-plug
   #:transparent
   #:methods gen:custom-write
   ((define (write-proc ap port mode)
-     (define x ($-var ap))
-     (define sp ($-spine ap))
+     (define x (plug-var ap))
+     (define sp (plug-spine ap))
      (define spine (string-join (for/list ([x sp]) (format "~a" x)) " "))
-     (fprintf port "($ ~a ~a)" x spine)))
+     (match sp
+       ['() (fprintf port "(plug ~a)" x)]
+       [_ (fprintf port "(plug ~a ~a)" x spine)])))
 
   #:property prop:bindings
-  (binder
+  (bindings-support
    (λ (ap frees i)
-     (define var ($-var ap))
-     (define spine ($-spine ap))
-     (match-define (binder abs-var _) (bindings-accessor var))
-     (raw-make-$
+     (define var (plug-var ap))
+     (define spine (plug-spine ap))
+     (match-define (bindings-support abs-var _) (bindings-accessor var))
+     (raw-make-plug
       (abs-var var frees i)
       (for/list ([arg spine])
-        (match-define (binder abs _) (bindings-accessor arg))
+        (match-define (bindings-support abs _) (bindings-accessor arg))
         (abs arg frees i))))
    (λ (ap i new-exprs)
-     (define var ($-var ap))
-     (define spine ($-spine ap))
-     (match-define (binder _ inst-var) (bindings-accessor var))
+     (define var (plug-var ap))
+     (define spine (plug-spine ap))
+     (match-define (bindings-support _ inst-var) (bindings-accessor var))
      (define new-spine
        (for/list ([arg spine])
-         (match-define (binder _ inst-arg) (bindings-accessor arg))
+         (match-define (bindings-support _ inst-arg) (bindings-accessor arg))
          (inst-arg arg i new-exprs)))
      (match (inst-var var i new-exprs)
-       [(bound-name ix) (raw-make-$ (bound-name ix) new-spine)]
-       [(free-name sym hint) (raw-make-$ (free-name sym hint) new-spine)]
-       [(? Λ? (app Λ-scope sc))
+       [(bound-name ix) (raw-make-plug (bound-name ix) new-spine)]
+       [(free-name sym hint) (raw-make-plug (free-name sym hint) new-spine)]
+       [(? bind? (app bind-scope sc))
         (define body (scope-body sc))
-        (match-let ([(binder _ inst-body) (bindings-accessor body)])
+        (match-let ([(bindings-support _ inst-body) (bindings-accessor body)])
           (inst-body body i new-spine))]))))
 
-(define-match-expander $
+(define-match-expander plug
   (λ (stx)
     (syntax-parse stx
       [(_ x e ...)
        (syntax/loc stx
-         (? $?
-            (and (app $-var x)
-                 (app $-spine (list e ...)))))]))
+         (? plug?
+            (and (app plug-var x)
+                 (app plug-spine (list e ...)))))]))
   (λ (stx)
     (syntax-parse stx
       [(_ x e ...)
        (syntax/loc stx
-         (as-atomic-term (make-$ x (list e ...))))])))
+         (as-atomic-term (make-plug x (list e ...))))])))
 
 (define (under-scope f sc)
   (match-define (cons vars body) (auto-instantiate sc))
   (abstract vars (f body)))
 
-(define (make-=> tele cod)
-  (raw-make-=> (as-telescope tele) (under-scope as-base-classifier cod)))
+(define (make-arity tele cod)
+  (raw-make-arity (as-telescope tele) (under-scope as-sort cod)))
 
-(define (make-Λ sc)
-  (raw-make-Λ (under-scope as-atomic-term sc)))
+(define (make-bind sc)
+  (raw-make-bind (under-scope as-atomic-term sc)))
 
-(define (make-$ x sp)
-  (raw-make-$ x (as-spine sp)))
+(define (make-plug x sp)
+  (raw-make-plug x (as-spine sp)))
 
-(define (as-classifier tm)
+(define (as-arity tm)
   (match tm
-    [(? =>? _) tm]
-    [_ (=> () (as-base-classifier tm))]))
+    [(? arity? _) tm]
+    [_ (arity () (as-sort tm))]))
 
-(define (as-base-classifier tm)
+(define (as-sort tm)
   (match tm
-    [(TYPE) (TYPE)]
+    [(SORT) (SORT)]
     [_ (as-atomic-term tm)]))
 
 (define (as-telescope tele)
   (for/list ([sc (in-list tele)])
-    (under-scope as-classifier sc)))
+    (under-scope as-arity sc)))
 
 (define (as-atomic-term tm)
   (match tm
-    [(? $? (app $-var x))
+    [(? plug? (app plug-var x))
      (if (free-name? x)
          tm
          (error "Crappy term!!"))]
     [(? free-name?)
-     ($ tm)]
+     (plug tm)]
     [_ (error (format "Crappy term!!! ~a" tm))]))
 
 (define (as-spine sp)
@@ -257,30 +259,30 @@
 
 (define (as-term tm)
   (match tm
-    [(? Λ? _) tm]
-    [_ (Λ () (as-atomic-term tm))]))
+    [(? bind? _) tm]
+    [_ (bind () (as-atomic-term tm))]))
 
 
 (define (unwrap-nullary-binder tm)
   (match tm
-    [(=> () tm) tm]
-    [(Λ () tm) tm]
+    [(arity () tm) tm]
+    [(bind () tm) tm]
     [_ tm]))
 
 (module+ test
   (check-true
    (match (as-term (fresh))
-     [(Λ () ($ (? free-name?))) #t]
+     [(bind () (plug (? free-name?))) #t]
      [_ #f]))
 
   (check-equal?
-   (as-classifier (=> ((x (TYPE))) (TYPE)))
-   (=> ((x (=> () (TYPE)))) (TYPE)))
+   (as-arity (arity ((x (SORT))) (SORT)))
+   (arity ((x (arity () (SORT)))) (SORT)))
 
   (let ([x (fresh)] [y (fresh)])
     (check-equal?
-     (as-classifier ($ x y))
-     (=> () ($ x (Λ () ($ y)))))))
+     (as-arity (plug x y))
+     (arity () (plug x (bind () (plug y)))))))
 
 (define-for-syntax sig-expander
   (λ (stx)
@@ -318,11 +320,11 @@
      (syntax/loc stx
        (instantiate
            (abstract (list x ...) e)
-         (list (Λ (y ...) ex) ...)))]
+         (list (bind (y ...) ex) ...)))]
     [(_ [x:id (y:id ...) ex:expr] e:expr)
      (syntax/loc stx
        (instantiate
-           (abstract (list x) (Λ (y ...) e))
+           (abstract (list x) (bind (y ...) e))
          (list ex)))]))
 
 
@@ -332,13 +334,13 @@
   (define-syntax-class signature-elem
     (pattern (name:id ((arg:id type:Pi) ...) result)))
   (define-syntax-class Pi
-    #:literals (=>)
+    #:literals (arity)
     ;; TODO: Add another pattern here to add implicit Pi when not used directly?
     (pattern
-     (=> () result)
+     (arity () result)
      #:attr (arg 1) '())
     (pattern
-     (=> ((arg:id type) ...) result))))
+     (arity ((arg:id type) ...) result))))
 
 
 
@@ -358,7 +360,7 @@
                     (for/list ([name/inner args])
                       (syntax-case name/inner ()
                         [(x (y ...))
-                         #'(Λ (y ...) x)]))])
+                         #'(bind (y ...) x)]))])
        #'(begin
            (define-for-syntax (help-pattern-expander stx)
              (syntax-parse stx
@@ -366,7 +368,7 @@
                 (with-syntax ([name-str (symbol->string (syntax->datum #'name))])
                   (syntax/loc stx
                     (app unwrap-nullary-binder
-                         ($ (free-name 'name name-str)
+                         (plug (free-name 'name name-str)
                             rhs
                             ...))))]))
            (define-for-syntax (help-constructor-expander stx)
@@ -374,7 +376,7 @@
                [(_ lhs ...)
                 (with-syntax ([name-str (symbol->string (syntax->datum #'name))])
                   (syntax/loc stx
-                    ($ (free-name 'name name-str)
+                    (plug (free-name 'name name-str)
                        rhs
                        ...)))]))
            (define-match-expander name help-pattern-expander help-constructor-expander)))]))
@@ -384,7 +386,7 @@
     [(_ sig-name c:signature-elem ...)
      #'(begin
          (define sig-name
-           (signature (c.name (=> ((c.arg c.type) ...) c.result)) ...))
+           (signature (c.name (arity ((c.arg c.type) ...) c.result)) ...))
          (define-signature-helper c.name ((c.arg c.type) ...)) ...)]))
 
 (define (snoc xs x)
@@ -393,18 +395,16 @@
 (define ctx?
   (listof (cons/c free-name? any/c)))
 
-(define rtype?
-  (or/c TYPE? $?))
-
-(define type? =>?)
+(define sort?
+  (or/c SORT? plug?))
 
 (define tele?
   (listof scope?))
 
 (define spine?
-  (listof Λ?))
+  (listof bind?))
 
-(define/contract (ctx->tele ctx)
+(define/contract (ctx->telescope ctx)
   (-> ctx? tele?)
   (define (aux xs ctx)
     (match ctx
@@ -414,26 +414,26 @@
   (aux '() ctx))
 
 ;; Need to check if this is right
-(define (tele->ctx names tele)
+(define (telescope->ctx names tele)
   (define (aux xs tele ctx)
     (match* (xs tele)
       [('() '()) ctx]
       [((cons x xs) (cons sc tele))
-       (aux xs tele (ctx-set ctx x (instantiate sc (map car ctx))))]))
+       (aux xs tele (dict-set ctx x (instantiate sc (map car ctx))))]))
   (aux names tele '()))
 
 (define/contract (chk-ctx? ctx)
   (-> ctx? any/c)
-  (chk-tele '() (ctx->tele ctx))
+  (check-telescope '() (ctx->telescope ctx))
   '())
 
 (define/contract (wf-ctx? ctx)
   (-> ctx? boolean?)
-  ((ok-tele? '()) (ctx->tele ctx)))
+  ((ok-telescope? '()) (ctx->telescope ctx)))
 
 (define/contract (ctx-set ctx x ty)
   (-> ctx? free-name? any/c ctx?)
-  (dict-set ctx x (as-classifier ty)))
+  (dict-set ctx x (as-arity ty)))
 
 (define/contract (ctx-ref ctx x)
   (-> ctx? free-name? any/c)
@@ -448,7 +448,7 @@
 (define (ctx-map f Γ)
   (map (cell-map f) Γ))
 
-(define/contract (chk-tele ctx tele)
+(define/contract (check-telescope ctx tele)
   (-> ctx? tele? (cons/c ctx? (listof free-name?)))
   (define (aux ctx xs tele)
     (match tele
@@ -456,142 +456,142 @@
       [(cons sc tele)
        (let* ([x (fresh)]
               [ty (instantiate sc xs)]
-              [ctx (ctx-set ctx x ty)]
+              [ctx (dict-set ctx x ty)]
               [xs (snoc xs x)])
-         (chk-type ctx ty)
+         (check-arity ctx ty)
          (aux ctx xs tele))]))
   (aux ctx '() tele))
 
-(define/contract (ok-tele? ctx)
+(define/contract (ok-telescope? ctx)
   (-> ctx? (-> tele? boolean?))
   (λ (tele)
     (with-handlers ([exn:fail? (λ (v) #f)])
-      (chk-tele ctx tele)
+      (check-telescope ctx tele)
       #t)))
 
 
-(define/contract (ok-rtype? ctx)
-  (-> ctx? (-> rtype? boolean?))
+(define/contract (ok-sort? ctx)
+  (-> ctx? (-> sort? boolean?))
   (λ (rty)
     (with-handlers ([exn:fail? (λ (v) #f)])
-      (chk-rtype ctx rty)
+      (check-sort ctx rty)
       #t)))
 
-(define/contract (chk-type ctx ty)
-  (-> ctx? type? any/c)
+(define/contract (check-arity ctx ty)
+  (-> ctx? arity? any/c)
   (match ty
-    [(? =>? (and (app =>-domain tele) (app =>-codomain cod)))
-     (match (chk-tele ctx tele)
+    [(? arity? (and (app arity-domain tele) (app arity-codomain cod)))
+     (match (check-telescope ctx tele)
        [(cons ctx xs)
-        (chk-rtype ctx (instantiate cod xs))])]))
+        (check-sort ctx (instantiate cod xs))])]))
 
 
-(define/contract (ok-type? ctx)
-  (-> ctx? (-> type? boolean?))
+(define/contract (ok-arity? ctx)
+  (-> ctx? (-> arity? boolean?))
   (λ (ty)
     (with-handlers ([exn:fail? (λ (v) #f)])
-      (chk-type ctx ty)
+      (check-arity ctx ty)
       #t)))
 
-(define/contract (chk-rtype ctx rty)
-  (-> ctx? rtype? any/c)
+(define/contract (check-sort ctx rty)
+  (-> ctx? sort? any/c)
   (match rty
-    [(TYPE) #t]
+    [(SORT) #t]
     [APP?
-     (match (inf-rtm ctx rty)
-       [(TYPE) '#t])]))
+     (match (infer-atomic-term ctx rty)
+       [(SORT) '#t])]))
 
 (define/contract (chk-spine ctx tele spine)
   (->i ((ctx ctx?)
-        (tele (ctx) (ok-tele? ctx))
+        (tele (ctx) (ok-telescope? ctx))
         (spine spine?))
        (result any/c))
   (define (aux ctx env tele spine)
     (match* (tele spine)
       [('() '()) #t]
       [((cons sc tele) (cons ntm spine))
-       (chk-ntm ctx ntm (instantiate sc env))
+       (check-term ctx ntm (instantiate sc env))
        (aux ctx (snoc env ntm) tele spine)]))
   (aux ctx '() tele spine))
 
 
 (define/contract (ok-spine? ctx tele)
   (->i ((ctx ctx?)
-        (tele (ctx) (ok-tele? ctx)))
+        (tele (ctx) (ok-telescope? ctx)))
        (result (-> spine? boolean?)))
   (λ (spine)
     (with-handlers ([exn:fail? (λ (v) #f)])
       (chk-spine ctx spine tele)
       #t)))
 
-(define/contract (chk-ntm ctx ntm ty)
+(define/contract (check-term ctx ntm ty)
   (->i ((ctx ctx?)
-        (ntm Λ?)
-        (ty (ctx ntm) (ok-type? ctx)))
+        (ntm bind?)
+        (ty (ctx ntm) (ok-arity? ctx)))
        (result any/c))
   (match* (ntm ty)
-    [((? Λ? (app Λ-scope sc)) (? =>? (and (app =>-domain tele) (app =>-codomain cod))))
-     (match (chk-tele ctx tele)
+    [((? bind? (app bind-scope sc)) (? arity? (and (app arity-domain tele) (app arity-codomain cod))))
+     (match (check-telescope ctx tele)
        [(cons ctx xs)
-        (chk-rtm ctx (instantiate sc xs) (instantiate cod xs))])]))
+        (check-atomic-term ctx (instantiate sc xs) (instantiate cod xs))])]))
 
 
-(define/contract (ok-ntm? ctx ty)
+(define/contract (ok-term? ctx ty)
   (->i ((ctx ctx?)
-        (ty (ctx) (ok-type? ctx)))
-       (result (-> Λ? boolean?)))
+        (ty (ctx) (ok-arity? ctx)))
+       (result (-> bind? boolean?)))
   (λ (ntm)
     (with-handlers ([exn:fail? (λ (v) #f)])
-      (chk-ntm ctx ntm ty)
+      (check-term ctx ntm ty)
       #t)))
 
-(define/contract (inf-rtm ctx rtm)
+(define/contract (infer-atomic-term ctx rtm)
   (->i ((ctx ctx?)
-        (rtm $?))
-       (result (ctx rtm) (ok-rtype? ctx)))
+        (rtm plug?))
+       (result (ctx rtm) (ok-sort? ctx)))
   (match rtm
-    [(? $? (and (app $-var x) (app $-spine spine)))
+    [(? plug? (and (app plug-var x) (app plug-spine spine)))
      (match (ctx-ref ctx x)
-       [(? =>? (and (app =>-domain tele) (app =>-codomain cod)))
+       [(? arity? (and (app arity-domain tele) (app arity-codomain cod)))
         (chk-spine ctx tele spine)
         (instantiate cod spine)])]))
 
-(define/contract (chk-rtm ctx rtm rty)
-  (-> ctx? $? rtype? any/c)
-  (if (equal? (inf-rtm ctx rtm) rty)
+(define/contract (check-atomic-term ctx rtm rty)
+  (-> ctx? plug? sort? any/c)
+  (if (equal? (infer-atomic-term ctx rtm) rty)
       #t
       (error "Type mismatch")))
 
-(define/contract (ok-rtm? ctx rty)
+(define/contract (ok-atomic-term? ctx rty)
   (->i ((ctx ctx?)
-        (rty (ctx) (ok-rtype? ctx)))
-       (result (-> $? boolean?)))
+        (rty (ctx) (ok-sort? ctx)))
+       (result (-> plug? boolean?)))
   (λ (rtm)
     (with-handlers ([exn:fail? (λ (v) #f)])
-      (chk-rtm ctx rtm rty)
+      (check-atomic-term ctx rtm rty)
       #t)))
 
 
 (module+ test
-  (=> ((a (fresh)) (b a)) b)
+  (arity ((a (fresh)) (b a)) b)
 
   (let ([x (fresh "hello")])
     (check-equal?
-     (=> ((a x) (b a)) b)
-     (=> ((b x) (c ($ b))) ($ c))))
+     (arity ((a x) (b a)) b)
+     (arity ((b x) (c (plug b))) (plug c))))
 
   (check-equal?
-   (Λ (n m) n)
-   (Λ (a b) a))
+   (bind (n m) n)
+   (bind (a b) a))
 
   (define-signature num-sig
-    (nat () (TYPE))
+    (nat () (SORT))
     (ze () (nat))
-    (su ((x (=> () (nat))))
+    (su ((x (arity () (nat))))
         (nat))
-    (ifze ((n (=> () (nat)))
-           (z (=> () (nat)))
-           (s (=> ((x (nat))) (nat))))
+    (ifze ((n (arity () (nat)))
+           (z (arity () (nat)))
+           (s (arity ((x (nat))) (nat))))
           (nat)))
 
   (chk-ctx? num-sig)
@@ -610,10 +610,10 @@
         (printer z)
         (free-name-hint x)
         (printer s))]
-      [($ x) (free-name-hint x)]))
+      [(plug x) (free-name-hint x)]))
 
   (check-equal?
-   (inf-rtm num-sig (ifze (su (su (ze))) (ze) (x) x))
+   (infer-atomic-term num-sig (ifze (su (su (ze))) (ze) (x) x))
    (nat))
 
   (check-equal?
