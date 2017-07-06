@@ -20,7 +20,7 @@
  probe
  multicut
  id-tac
- >> $* Λ*
+ >> plug* bind*
  raise-refinement-error)
 
 (module hyp-pattern racket/base
@@ -34,7 +34,7 @@
   (provide with-hyp unapply)
 
   (define/contract (ctx-split Γ x)
-    (-> ctx? free-name? (values ctx? =>? (-> any/c ctx?)))
+    (-> ctx? free-name? (values ctx? binder? (-> any/c ctx?)))
     (let* ([p (λ (cell) (not (equal? x (car cell))))]
            [Γ0 (takef Γ p)]
            [Γ1 (cdr (dropf Γ p))])
@@ -51,7 +51,7 @@
       (syntax-parse stx
         [(_ Γ0:expr x:expr ((y:id B:expr) ...) A:expr Γ1:expr)
          (syntax/loc stx
-           (app (λ (Γ) (ctx-split Γ x)) Γ0 (=> ((y B) ...) A) Γ1))])))
+           (app (λ (Γ) (ctx-split Γ x)) Γ0 (binder ((y B) ...) A) Γ1))])))
 
   (define-for-syntax unapply-hyp-expander
     (λ (stx)
@@ -79,7 +79,7 @@
     [(_ Γ0:expr ((x:expr ty:expr) ...) Γ1:expr)
      (syntax/loc stx
        (append Γ0
-               (list (cons x (as-classifier ty)) ...)
+               (list (cons x (as-arity ty)) ...)
                Γ1))]))
 
 (module sequent racket/base
@@ -92,28 +92,28 @@
   (provide >> subgoals >>? >>-ty
            proof-state proof-state? >: complete-proof? proof-extract)
 
-  ;; This is a wrapper around a goal / => type which keeps a cache of names for assumptions,
+  ;; This is a wrapper around a goal / binder type which keeps a cache of names for assumptions,
   ;; which can then be used when unpacking. The result of this is that we can have user-supplied
   ;; names in tactic scripts, even though naively that doesn't make scope-sense when thinking
-  ;; of goals as => types.
+  ;; of goals as binder types.
   (struct >> (names ty)
     #:omit-define-syntaxes
     #:extra-constructor-name make->>
     #:transparent
     #:property prop:bindings
-    (binder
+    (bindings-support
      (λ (goal frees i)
        (define names (>>-names goal))
        (define ty (>>-ty goal))
-       (match-define (binder abs-ty _) (bindings-accessor ty))
+       (match-define(bindings-support abs-ty _) (bindings-accessor ty))
        (make->> names (abs-ty ty frees i)))
      (λ (goal i new-exprs)
        (define names (>>-names goal))
        (define ty (>>-ty goal))
-       (match-define (binder _ inst-ty) (bindings-accessor ty))
+       (match-define(bindings-support _ inst-ty) (bindings-accessor ty))
        (make->> names (inst-ty ty i new-exprs)))))
 
-  ;; a telescope of goals, together with an extract (scope) binding the goals' metavariables
+  ;; a telescope of goals, together with an extract (scope) binding the goals' plugvariables
   (struct proof-state (tele output)
     #:transparent)
 
@@ -122,11 +122,11 @@
     (zero? (scope-valence (proof-state-output st))))
 
   (define/contract (proof-extract st)
-    (-> complete-proof? Λ?)
+    (-> complete-proof? bind?)
     (instantiate (proof-state-output st) '()))
 
   (define/contract (unpack-proof-state state)
-    (-> proof-state? (values ctx? Λ?))
+    (-> proof-state? (values ctx? bind?))
     (match-define (proof-state tele output) state)
     (define xs (map (λ (g) (fresh)) tele))
     (values
@@ -148,13 +148,13 @@
   (define/contract (pack-goal ctx rty)
     (-> ctx? rtype? >>?)
     (let ([xs (map car ctx)])
-      (make->> xs (make-=> (ctx->tele ctx) (abstract xs rty)))))
+      (make->> xs (make-binder (ctx->tele ctx) (abstract xs rty)))))
 
   (define/contract (unpack-goal goal)
     (-> >>? (values ctx? rtype?))
     (define xs (>>-names goal))
     (define ty (>>-ty goal))
-    (values (tele->ctx xs (=>-domain ty)) (instantiate (=>-codomain ty) xs)))
+    (values (tele->ctx xs (binder-domain ty)) (instantiate (binder-codomain ty) xs)))
 
   (define-match-expander >>
     (λ (stx)
@@ -183,22 +183,22 @@
 (require 'sequent)
 
 (define/contract (eta cell)
-  (-> (cons/c free-name? =>?) Λ?)
+  (-> (cons/c free-name? binder?) bind?)
   (match cell
-    [(cons x (and (app =>-domain tele) (app =>-codomain cod)))
+    [(cons x (and (app binder-domain tele) (app binder-codomain cod)))
      (let* ([xs (map (λ (sc) (fresh)) tele)]
             [ctx (tele->ctx xs tele)])
-       (make-Λ
-        (abstract xs (make-$ x (map eta ctx)))))]))
+       (make-bind
+        (abstract xs (make-plug x (map eta ctx)))))]))
 
-(define/contract ($* x Γ)
-  (-> free-name? ctx? $?)
-  (make-$ x (map eta Γ)))
+(define/contract (plug* x Γ)
+  (-> free-name? ctx? plug?)
+  (make-plug x (map eta Γ)))
 
-(define/contract (Λ* Γ e)
-  (-> ctx? any/c Λ?)
+(define/contract (bind* Γ e)
+  (-> ctx? any/c bind?)
   (define xs (map car Γ))
-  (make-Λ (abstract xs e)))
+  (make-bind (abstract xs e)))
 
 
 (struct exn:fail:refinement exn:fail (goal)
@@ -225,7 +225,7 @@
                (match g
                  [(and (>> Γ J) goal)
                   definition ...
-                  (subgoals ((x subgoal) ...) (Λ* Γ extract))]
+                  (subgoals ((x subgoal) ...) (bind* Γ extract))]
                  [other-goal
                   (raise-refinement-error (format "Inapplicable: ~a" other-goal) other-goal)]))
              'rule-name)
@@ -316,18 +316,18 @@
     (tm () (TYPE))
 
     (conj
-     ([p (=> () (prop))]
-      [q (=> () (prop))])
+     ([p (binder () (prop))]
+      [q (binder () (prop))])
      (prop))
 
     (disj
-     ([p (=> () (prop))]
-      [q (=> () (prop))])
+     ([p (binder () (prop))]
+      [q (binder () (prop))])
      (prop))
 
     (imp
-     ([p (=> () (prop))]
-      [q (=> () (prop))])
+     ([p (binder () (prop))]
+      [q (binder () (prop))])
      (prop))
 
     (T () (prop))
@@ -337,38 +337,38 @@
     (nil () (tm))
 
     (pair
-     ([m (=> () (tm))]
-      [n (=> () (tm))])
+     ([m (binder () (tm))]
+      [n (binder () (tm))])
      (tm))
 
     (fst
-     ([m (=> () (tm))])
+     ([m (binder () (tm))])
      (tm))
 
     (snd
-     ([m (=> () (tm))])
+     ([m (binder () (tm))])
      (tm))
 
     (inl
-     ([m (=> () (tm))])
+     ([m (binder () (tm))])
      (tm))
 
     (inr
-     ([m (=> () (tm))])
+     ([m (binder () (tm))])
      (tm))
 
     (split
-     ([m (=> () (tm))]
-      [l (=> ([x (tm)]) (tm))]
-      [r (=> ([y (tm)]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
+     ([m (binder () (tm))]
+      [l (binder ([x (tm)]) (tm))]
+      [r (binder ([y (tm)]) (tm))]) ; for some reason, I can't use 'x' here. something about duplicate attributes
      (tm))
 
     (lam
-     ([m (=> ([x (tm)]) (tm))])
+     ([m (binder ([x (tm)]) (tm))])
      (tm))
 
     (is-true
-     ([p (=> () (prop))])
+     ([p (binder () (prop))])
      (TYPE)))
 
 
@@ -387,7 +387,7 @@
     (>> Γ (is-true (conj p q)))
     ([X (>> Γ (is-true p))]
      [Y (>> Γ (is-true q))])
-    (pair ($* X Γ) ($* Y Γ)))
+    (pair (plug* X Γ) (plug* Y Γ)))
 
   (define-rule (conj/L x x0 x1)
     (>> (with-hyp Γ0 x () (is-true (conj p q)) Γ1)
@@ -401,17 +401,17 @@
     (subst
      ([x0 () (fst x)]
       [x1 () (snd x)])
-     ($* X Γ/pq)))
+     (plug* X Γ/pq)))
 
   (define-rule disj/R/1
     (>> Γ (is-true (disj p q)))
     ([X (>> Γ (is-true p))])
-    (inl ($* X Γ)))
+    (inl (plug* X Γ)))
 
   (define-rule disj/R/2
     (>> Γ (is-true (disj p q)))
     ([X (>> Γ (is-true q))])
-    (inr ($* X Γ)))
+    (inr (plug* X Γ)))
 
   (define-rule (disj/L x)
     (>> (with-hyp Γ0 x () (is-true (disj p q)) Γ1)
@@ -420,7 +420,7 @@
     (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (inr y))))
     ([L (>> (Γ/p x) (is-true (r (inl x))))]
      [R (>> (Γ/q x) (is-true (r (inr x))))])
-    (split x (xl) ($* L (Γ/p xl)) (xr) ($* R (Γ/q xr))))
+    (split x (xl) (plug* L (Γ/p xl)) (xr) (plug* R (Γ/q xr))))
 
 
   (define-rule (imp/R x)
@@ -428,7 +428,7 @@
     (define (Γ/p x)
       (ctx-set Γ x (is-true p)))
     ([X (>> (Γ/p x) (is-true q))])
-    (lam (x) ($* X (Γ/p x))))
+    (lam (x) (plug* X (Γ/p x))))
 
   (define-rule T/R
     (>> Γ (is-true (T)))
@@ -487,7 +487,7 @@
                         probe
                         (split/t x (pair/t (hyp x) T/R) (orelse T/R (F/L x)))))])
           (proof-extract (script goal)))
-        (Λ ()
+        (bind ()
            (lam (x)
                 (split x
                        (b) (pair b (nil))
