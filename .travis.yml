@@ -20,15 +20,6 @@ env:
     # Supply more than one RACKET_VERSION (as in the example below) to
     # create a Travis-CI build matrix to test against multiple Racket
     # versions.
-    - RACKET_VERSION=6.0
-    - RACKET_VERSION=6.1
-    - RACKET_VERSION=6.1.1
-    - RACKET_VERSION=6.2
-    - RACKET_VERSION=6.3
-    - RACKET_VERSION=6.4
-    - RACKET_VERSION=6.5
-    - RACKET_VERSION=6.6
-    - RACKET_VERSION=6.7
     - RACKET_VERSION=6.8
     - RACKET_VERSION=6.9
     - RACKET_VERSION=HEAD
@@ -44,7 +35,7 @@ before_install:
 - export PATH="${RACKET_DIR}/bin:${PATH}" #install-racket.sh can't set for us
 
 install:
- - raco pkg install --deps search-auto
+ - raco pkg install -n grit --deps search-auto
 
 before_script:
 
@@ -52,9 +43,9 @@ before_script:
 # `raco pkg install --deps search-auto` to install any required
 # packages without it getting stuck on a confirmation prompt.
 script:
- - raco test -x -p racket-logical-framework
+ - raco test -x -p grit
 
 after_success:
- - raco setup --check-pkg-deps --pkgs racket-logical-framework
+ - raco setup --check-pkg-deps --pkgs grit
  - raco pkg install --deps search-auto cover cover-coveralls
  - raco cover -b -f coveralls -d $TRAVIS_BUILD_DIR/coverage .
