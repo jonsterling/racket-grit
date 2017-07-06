@@ -102,7 +102,7 @@
       [(_ ((x:id e:expr) ...) cod:expr)
        (syntax/loc stx
          (? arity? (and (app arity-domain (telescope (x e) ...))
-                     (app arity-codomain (in-scope (x ...) cod)))))]))
+                        (app arity-codomain (in-scope (x ...) cod)))))]))
   (λ (stx)
     (syntax-parse stx
       [(_ ((x:id e:expr) ...) cod:expr)
@@ -369,16 +369,16 @@
                   (syntax/loc stx
                     (app unwrap-nullary-binder
                          (plug (free-name 'name name-str)
-                            rhs
-                            ...))))]))
+                               rhs
+                               ...))))]))
            (define-for-syntax (help-constructor-expander stx)
              (syntax-parse stx
                [(_ lhs ...)
                 (with-syntax ([name-str (symbol->string (syntax->datum #'name))])
                   (syntax/loc stx
                     (plug (free-name 'name name-str)
-                       rhs
-                       ...)))]))
+                          rhs
+                          ...)))]))
            (define-match-expander name help-pattern-expander help-constructor-expander)))]))
 
 (define-syntax (define-signature stx)
