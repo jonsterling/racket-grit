@@ -164,7 +164,7 @@
   ()
   (ff))
 
-(define-rule (bool/L z)
+(define-rule (bool/L/inh z)
   (>> (and Γ (with-hyp Γ0 z  () (is-inh (bool)) Γ1))
       (is-inh (unapply C z)))
   (define Γ/tt (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (tt))))
@@ -262,26 +262,44 @@
 
 (module+ test
   (define x (fresh "x"))
+
+  (define direct-computation
+    (orelse
+     inh/direct-computation
+     eq-ty/direct-computation))
+
+  (define (bool/L x)
+    (orelse
+     (bool/L/inh x)
+     (bool/L/eq-ty x)))
+
+  (define (if/t x t1 t2)
+    (multicut
+     (bool/L x)
+     t1
+     t2))
+
+  (define (compute-and t)
+    (multicut
+     direct-computation
+     t))
   
   (define my-script
     (multicut
-     (dfun/R x)
      (multicut
-      (bool/L x)
-      (multicut
-       inh/direct-computation
-       unit/R)
-      (multicut
-       inh/direct-computation
-       (hyp x))
-      (multicut
-       (bool/L/eq-ty x)
-       (multicut eq-ty/direct-computation unit/F)
-       (multicut eq-ty/direct-computation bool/F)))
+      (dfun/R x)
+      (if/t
+       x
+       (compute-and unit/R)
+       (compute-and (hyp x))))
+     (if/t
+      x
+      (compute-and unit/F)
+      (compute-and bool/F))
      bool/F))
   
   (define goal
-    (>> null (is-inh (dfun (bool) (x) (bool-if (plug x) (unit) (bool))))))
+    (>> null (is-inh (dfun (bool) (x) (bool-if x (unit) (bool))))))
   (my-script goal))
 
 ; TODO: define left rules
