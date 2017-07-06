@@ -264,7 +264,7 @@
 
   (define (balance-tactics subgoals tactics)
     (match* (subgoals tactics)
-      [('() '()) '()]
+      [('() _) '()]
       [((cons goal subgoals) '())
        (cons id-tac (balance-tactics subgoals '()))]
       [((cons goal subgoals) (cons tactic tactics))
