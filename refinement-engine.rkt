@@ -7,6 +7,7 @@
    syntax/srcloc)
   racket/contract
   racket/match
+  racket/dict
   syntax/srcloc
   "locally-nameless.rkt"
   "logical-framework.rkt")
@@ -24,6 +25,47 @@
  id-tac
  >> plug* bind*
  raise-refinement-error)
+
+
+
+(define refinement-ctx?
+  (listof
+   (cons/c
+    free-name?
+    arity?)))
+
+(define/contract (check-sort-refinement ctx rctx refn)
+  (-> ctx? refinement-ctx? plug? sort?)
+  (define args (plug-spine refn))
+  (define arity (dict-ref rctx (plug-var refn)))
+  (check-spine ctx (arity-domain arity) args)
+  (instantiate (arity-codomain arity) args))
+
+; TODO: check this code and make sure it is correct
+(define/contract (check-telescope-refinement ctx rctx tele)
+  (-> ctx? refinement-ctx? tele? ctx?)
+  (define (aux ctx env input output)
+    (match input
+      ['() output]
+      [(cons sc tele)
+       (define arity (check-arity-refinement ctx rctx (instantiate sc env)))
+       (define x (fresh))
+       (aux
+        (ctx-set ctx x arity)
+        (append env (list x))
+        (append output (list (cons x arity))))]))
+  (aux ctx '()  tele '()))
+
+(define/contract (check-arity-refinement ctx rctx refn)
+  (-> ctx? refinement-ctx? arity? arity?)
+  (define dom (arity-domain refn))
+  (define cod (arity-codomain refn))
+  (define dom-ctx (check-telescope-refinement ctx rctx dom))
+  (check-sort-refinement
+   (append ctx dom-ctx)
+   rctx
+   (instantiate cod (map car dom-ctx))))
+
 
 (module hyp-pattern racket/base
   (require
@@ -183,6 +225,7 @@
            (pack-proof-state Ψ o))]))))
 
 (require 'sequent)
+
 
 (define/contract (eta cell)
   (-> (cons/c free-name? arity?) bind?)

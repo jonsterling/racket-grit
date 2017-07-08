@@ -20,11 +20,12 @@
 
 (provide
  SORT arity bind plug
- arity? bind? plug? sort? ctx?
+ arity? bind? plug? sort? ctx? tele?
  define-signature telescope
  make-arity arity-domain arity-codomain
  make-bind
  make-plug
+ plug-var plug-spine
  as-arity
  as-atomic-term
  as-term
@@ -39,7 +40,7 @@
  check-telescope
  check-term
  check-atomic-term
- chk-spine
+ check-spine
  infer-atomic-term
 
  ok-sort?
@@ -499,7 +500,7 @@
      (match (infer-atomic-term ctx rty)
        [(SORT) '#t])]))
 
-(define/contract (chk-spine ctx tele spine)
+(define/contract (check-spine ctx tele spine)
   (->i ((ctx ctx?)
         (tele (ctx) (ok-telescope? ctx))
         (spine spine?))
@@ -519,7 +520,7 @@
        (result (-> spine? boolean?)))
   (λ (spine)
     (with-handlers ([exn:fail? (λ (v) #f)])
-      (chk-spine ctx spine tele)
+      (check-spine ctx spine tele)
       #t)))
 
 (define/contract (check-term ctx ntm ty)
@@ -551,7 +552,7 @@
     [(? plug? (and (app plug-var x) (app plug-spine spine)))
      (match (ctx-ref ctx x)
        [(? arity? (and (app arity-domain tele) (app arity-codomain cod)))
-        (chk-spine ctx tele spine)
+        (check-spine ctx tele spine)
         (instantiate cod spine)])]))
 
 (define/contract (check-atomic-term ctx rtm rty)
