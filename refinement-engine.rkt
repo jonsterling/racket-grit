@@ -53,6 +53,7 @@
        (aux
         (ctx-set ctx x arity)
         (append env (list x))
+        tele
         (append output (list (cons x arity))))]))
   (aux ctx '()  tele '()))
 
