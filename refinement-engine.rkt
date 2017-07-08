@@ -67,6 +67,7 @@
    (instantiate cod (map car dom-ctx))))
 
 
+
 (module hyp-pattern racket/base
   (require
     (for-syntax racket/base syntax/parse)
@@ -79,16 +80,19 @@
 
   (define/contract (ctx-split Γ x)
     (-> ctx? free-name? (values ctx? arity? (-> any/c ctx?)))
-    (let* ([p (λ (cell) (not (equal? x (car cell))))]
-           [Γ0 (takef Γ p)]
-           [Γ1 (cdr (dropf Γ p))])
-      (values
-       Γ0
-       (ctx-ref Γ x)
-       (λ (e)
-         ctx-map
-         (λ (a) (instantiate (abstract (list x) a) (list (as-term e))))
-         Γ1))))
+    (define (pred cell)
+      (not (equal? x (car cell))))
+
+    (define Γ0 (takef Γ pred))
+    (define Γ1 (cdr (dropf Γ pred)))
+
+    (values
+     Γ0
+     (ctx-ref Γ x)
+     (λ (e)
+       ctx-map
+       (λ (a) (instantiate (abstract (list x) a) (list (as-term e))))
+       Γ1)))
 
   (define-for-syntax ctx-split-expander
     (λ (stx)
