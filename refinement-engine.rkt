@@ -279,6 +279,33 @@
        '()
        '()))))
 
+(define/contract (then . ts)
+  (->* ()
+       #:rest (listof tac/c)
+       tac/c)
+  (match ts
+    ['() id-tac]
+    [(cons t1 ts)
+     (define (then/aux subgoals output subgoals-out env-out)
+       (match subgoals
+         ['()
+          (>: subgoals-out (instantiate output env-out))]
+         [(cons goal subgoals)
+          (match-let ([(>: subgoals1 output1)
+                       ((apply then ts) (instantiate goal env-out))])
+            (then/aux
+             subgoals
+             output
+             (append subgoals-out subgoals1)
+             (append env-out (list output1))))]))
+     (λ (goal)
+       (match-let ([(proof-state subgoals output) (t1 goal)])
+         (then/aux
+          subgoals
+          output
+          '()
+          '())))]))
+
 (define (orelse t1 . ts)
   (match ts
     ['() t1]
@@ -469,6 +496,11 @@
      t1
      t2))
 
+  (let* ([goal (>> '() (is-true (conj (disj (T) (F)) (conj (T) (T)))))]
+         [script
+          (then conj/R (orelse disj/R/1 conj/R) T/R)])
+    (check-equal? (proof-extract (script goal))
+                  (as-term (pair (inl (nil)) (pair (nil) (nil))))))
 
   (require (only-in racket/port with-output-to-string))
   (check-not-false
