@@ -7,6 +7,8 @@
 
 (module+ test (require rackunit))
 
+(define-namespace-anchor demo-anchor)
+
 (define-signature L
   (prop () (SORT))
 

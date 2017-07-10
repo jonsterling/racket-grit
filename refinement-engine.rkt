@@ -113,12 +113,12 @@
      (λ (goal frees i)
        (define names (>>-names goal))
        (define ty (>>-ty goal))
-       (match-define(bindings-support abs-ty _) (bindings-accessor ty))
+       (match-define (bindings-support abs-ty _) (bindings-accessor ty))
        (make->> names (abs-ty ty frees i)))
      (λ (goal i new-exprs)
        (define names (>>-names goal))
        (define ty (>>-ty goal))
-       (match-define(bindings-support _ inst-ty) (bindings-accessor ty))
+       (match-define (bindings-support _ inst-ty) (bindings-accessor ty))
        (make->> names (inst-ty ty i new-exprs)))))
 
   ;; a telescope of goals, together with an extract (scope) binding the goals' plugvariables
