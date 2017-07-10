@@ -416,9 +416,9 @@
 (define (telescope->ctx names tele)
   (define (aux xs tele ctx)
     (match* (xs tele)
-      [('() '()) ctx]
+      [('() '()) (reverse ctx)]
       [((cons x xs) (cons sc tele))
-       (aux xs tele (dict-set ctx x (instantiate sc (map car ctx))))]))
+       (aux xs tele (cons (cons  x (instantiate sc (map car ctx))) ctx))]))
   (aux names tele '()))
 
 (define/contract (chk-ctx? ctx)
