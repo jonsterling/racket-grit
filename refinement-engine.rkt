@@ -518,6 +518,14 @@
      t2))
 
 
+  (let* ([my-refinement (fresh "refn")]
+         [my-refinement-sig
+          (list
+           (cons my-refinement (arity ([x (tm)]) (tm))))])
+    (check-equal?
+     (check-sort-refinement L my-refinement-sig (plug my-refinement (nil)))
+     (tm)))
+
   (require (only-in racket/port with-output-to-string))
   (check-not-false
    (regexp-match
