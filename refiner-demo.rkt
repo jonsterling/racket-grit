@@ -7,7 +7,7 @@
 
 (module+ test (require rackunit))
 
-(define-signature L
+(define-signature Lang
   (prop () (SORT))
 
   (tm () (SORT))
@@ -65,30 +65,30 @@
    (tm)))
 
 
-(define-signature refinements
+(define-signature Jdg
   (is-true
    ([p (arity () (prop))])
    (tm)))
 
 
-(define-rule (hyp x)
+(define-rule (hyp x) #:sig Lang Jdg
   (>> (with-hyp Γ0 x () tyx Γ1)
       goalTy)
   (if (not (equal? goalTy tyx))
       (raise-refinement-error
        (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy)
        goalTy)
-    '())
+      '())
   ()
   x)
 
-(define-rule conj/R
+(define-rule conj/R #:sig Lang Jdg
   (>> Γ (is-true (conj p q)))
   ([X (>> Γ (is-true p))]
    [Y (>> Γ (is-true q))])
   (pair (plug* X Γ) (plug* Y Γ)))
 
-(define-rule (conj/L x x0 x1)
+(define-rule (conj/L x x0 x1) #:sig Lang Jdg
   (>> (with-hyp Γ0 x () (is-true (conj p q)) Γ1)
       (is-true (unapply r x)))
   (define Γ/pq
@@ -102,17 +102,17 @@
     [x1 () (snd x)])
    (plug* X Γ/pq)))
 
-(define-rule disj/R/1
+(define-rule disj/R/1 #:sig Lang Jdg
   (>> Γ (is-true (disj p q)))
   ([X (>> Γ (is-true p))])
   (inl (plug* X Γ)))
 
-(define-rule disj/R/2
+(define-rule disj/R/2 #:sig Lang Jdg
   (>> Γ (is-true (disj p q)))
   ([X (>> Γ (is-true q))])
   (inr (plug* X Γ)))
 
-(define-rule (disj/L x)
+(define-rule (disj/L x) #:sig Lang Jdg
   (>> (with-hyp Γ0 x () (is-true (disj p q)) Γ1)
       (is-true (unapply r x)))
   (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (inl y))))
@@ -122,19 +122,19 @@
   (split x (xl) (plug* L (Γ/p xl)) (xr) (plug* R (Γ/q xr))))
 
 
-(define-rule (imp/R x)
+(define-rule (imp/R x) #:sig Lang Jdg
   (>> Γ (is-true (imp p q)))
   (define (Γ/p x)
     (ctx-set Γ x (is-true p)))
   ([X (>> (Γ/p x) (is-true q))])
   (lam (x) (plug* X (Γ/p x))))
 
-(define-rule T/R
+(define-rule T/R #:sig Lang Jdg
   (>> Γ (is-true (T)))
   ()
   (nil))
 
-(define-rule (F/L x)
+(define-rule (F/L x) #:sig Lang Jdg
   (>> (with-hyp Γ0 x () (is-true (F)) Γ1)
       (is-true p))
   ()
@@ -144,7 +144,7 @@
   (syntax-parse stx
     [(_ (x:id) t:expr)
      (with-syntax
-       ([var-name (symbol->string (syntax->datum #'x))])
+         ([var-name (symbol->string (syntax->datum #'x))])
        (syntax/loc stx
          (let ([x (fresh var-name)])
            (multicut (imp/R x) t))))]))
@@ -167,22 +167,23 @@
    t2))
 
 (module+ test
- (let* ([goal (>> '() (is-true (conj (disj (T) (F)) (conj (T) (T)))))]
-        [script
-         (then conj/R (orelse disj/R/1 conj/R) T/R)])
-   (check-equal? (proof-extract (script goal))
-                 (as-term (pair (inl (nil)) (pair (nil) (nil))))))
+  (let* ([goal (>> '() (is-true (conj (disj (T) (F)) (conj (T) (T)))))]
+         [script
+          (then conj/R (orelse disj/R/1 conj/R) T/R)])
+    (check-equal? (proof-extract (script goal))
+                  (as-term (pair (inl (nil)) (pair (nil) (nil))))))
 
- (require (only-in racket/port with-output-to-string))
- (check-not-false
-  (regexp-match
-   ;; This is a hacky regexp that should match a source location, but changes to
-   ;; the printing of various structs or source locations may invalidate it.
-   ;; The idea is that a probe should have run while executing the test, but
-   ;; we can't predict the filename or the gensym used for printing the internal
-   ;; names of the >>.
-   #rx"refiner-demo\\.rkt:[0-9]+.[0-9]+: #\\(struct:>> \\([^)]+\\)"
-   (with-output-to-string
+  (require (only-in racket/port with-output-to-string))
+ 
+  (check-not-false
+   (regexp-match
+    ;; This is a hacky regexp that should match a source location, but changes to
+    ;; the printing of various structs or source locations may invalidate it.
+    ;; The idea is that a probe should have run while executing the test, but
+    ;; we can't predict the filename or the gensym used for printing the internal
+    ;; names of the >>.
+    #rx"refiner-demo\\.rkt:[0-9]+.[0-9]+: #\\(struct:>> \\([^)]+\\)"
+    (with-output-to-string
      (λ ()
        (check-equal?
         (let* ([goal (>> '() (is-true (imp (disj (T) (F)) (conj (T) (T)))))]

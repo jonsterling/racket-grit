@@ -266,18 +266,36 @@
 (define (raise-refinement-error msg goal)
   (raise (exn:fail:refinement msg (current-continuation-marks) goal)))
 
+(define ((ok-goal? lf-sig ref-sig) goal)
+  (with-handlers
+      ([exn:fail? (λ (_) #f)])
+    (check-arity-refinement lf-sig ref-sig (>>-ty goal))
+    #t))
+
+; TODO: implement
+(define ((ok-proof-state? lf-sig ref-sig) state)
+  #t)
+
+(define (ok-rule? lf-sig ref-sig)
+  (match* (lf-sig ref-sig)
+    [(#f #f) tac/c]
+    [(_ _)
+     (->
+      (ok-goal? lf-sig ref-sig)
+      (ok-proof-state? lf-sig ref-sig))]))
+
 (define-syntax (define-rule stx)
   (define (get-name h)
     (syntax-parse h
       [n:id #'n]
       [(h* e ...) (get-name #'h*)]))
   (syntax-parse stx
-    [(_ head goal definition:expr ... ((x:id subgoal) ...) extract)
+    [(_ head (~optional (~seq #:sig lf-sig ref-sig) #:defaults ([lf-sig #'#f] [ref-sig #'#f])) goal definition:expr ... ((x:id subgoal) ...) extract)
      (with-syntax ([rule-name (get-name #'head)])
        (syntax/loc stx
          (define head
            (contract
-            tac/c
+            (ok-rule? lf-sig ref-sig)
             (procedure-rename
              (λ (g)
                (match g
