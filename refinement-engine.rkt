@@ -68,11 +68,13 @@
   (define dom (arity-domain refn))
   (define cod (arity-codomain refn))
   (define dom-ctx (check-telescope-refinement ctx rctx dom))
-  (check-sort-refinement
-   (append ctx dom-ctx)
-   rctx
-   (instantiate cod (map car dom-ctx))))
-
+  (define xs (map car dom-ctx))
+  (define tau
+    (check-sort-refinement
+     (append ctx dom-ctx)
+     rctx
+     (instantiate cod xs)))
+  (make-arity dom-ctx (abstract xs tau)))
 
 
 (module hyp-pattern racket/base
