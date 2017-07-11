@@ -272,17 +272,23 @@
     (check-arity-refinement lf-sig ref-sig (>>-ty goal))
     #t))
 
-; TODO: implement
-(define ((ok-proof-state? lf-sig ref-sig) state)
-  #t)
+(define (ok-proof-state? lf-sig ref-sig goal)
+  (with-handlers
+      ([exn:fail? (λ (_) #f)])
+    (match-lambda
+      [(proof-state subgoals output)
+       (define ctx (check-telescope-refinement lf-sig ref-sig (map (λ (goal) (under-scope >>-ty goal)) subgoals)))
+       (define arity (check-arity-refinement lf-sig ref-sig (>>-ty goal)))
+       (check-term (append lf-sig ctx) (instantiate output (map car ctx)) arity)
+       #t])))
 
 (define (ok-rule? lf-sig ref-sig)
   (match* (lf-sig ref-sig)
     [(#f #f) tac/c]
     [(_ _)
-     (->
-      (ok-goal? lf-sig ref-sig)
-      (ok-proof-state? lf-sig ref-sig))]))
+     (->i
+      ((goal (ok-goal? lf-sig ref-sig)))
+      (result (goal) (ok-proof-state? lf-sig ref-sig goal)))]))
 
 (define-syntax (define-rule stx)
   (define (get-name h)

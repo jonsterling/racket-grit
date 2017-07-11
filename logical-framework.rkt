@@ -48,7 +48,9 @@
  ok-telescope?
  ok-spine?
  ok-term?
- ok-atomic-term?)
+ ok-atomic-term?
+
+ under-scope)
 
 (module+ test
   (require rackunit))
