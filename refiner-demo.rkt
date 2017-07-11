@@ -62,11 +62,13 @@
 
   (lam
    ([m (arity ([x (tm)]) (tm))])
-   (tm))
+   (tm)))
 
+
+(define-signature refinements
   (is-true
    ([p (arity () (prop))])
-   (SORT)))
+   (tm)))
 
 
 (define-rule (hyp x)
