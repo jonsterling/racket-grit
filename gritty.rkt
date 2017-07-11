@@ -284,13 +284,14 @@
   (require 'proof-module)
   (current-proof-namespace (namespace-anchor->namespace here))
 
-  (define-check (check-serialization p)
+  (define-simple-check (check-serialization p)
     (define tmp (make-temporary-file "grittytest~a"))
     (write-gritty-file p tmp #:exists 'replace)
     (define p2 (read-gritty-file tmp))
-    (if (same-proof? p p2)
-        (void)
-        (fail-check)))
+    (same-proof? p p2))
+  
+  (define-simple-check (check-goal-feedback? x)
+    (goal-feedback? x))
 
   (define test-gritty-proof-1
     (module-node
@@ -305,7 +306,7 @@
 
   (define out-1 (interpret-mod test-gritty-proof-1))
   (check-equal? (length out-1) 1)
-  (check-true (goal-feedback? (car out-1)))
+  (check-goal-feedback? (car out-1))
 
   (define test-gritty-proof-2
     (module-node
@@ -324,7 +325,9 @@
 
   (define out-2 (interpret-mod test-gritty-proof-2))
   (check-equal? (length out-2) 3)
-  (check-true (andmap goal-feedback? out-2))
+  (check-goal-feedback? (car out-2))
+  (check-goal-feedback? (cadr out-2))
+  (check-goal-feedback? (caddr out-2))
 
   (define test-gritty-proof-3
     (module-node
@@ -345,4 +348,7 @@
 
   (define out-3 (interpret-mod test-gritty-proof-3))
   (check-equal? (length out-3) 3)
-  (check-true (andmap goal-feedback? out-3)))
+  (check-goal-feedback? (car out-3))
+  (check-goal-feedback? (cadr out-3))
+  (check-goal-feedback? (caddr out-3))
+  )
