@@ -63,16 +63,16 @@
 
 (define/contract (interpret-def Δ d)
   (-> (listof lemma?) def-node? (values (listof feedback?) (or/c #f lemma?)))
-  (match-define (def-node name goal body loc goal-loc) d)
-  (let ([goal-val
-         (with-handlers ([exn:fail? (λ (e) (proof-error (exn-message e) goal-loc))])
-           (with-input-from-string goal
-             (thunk (eval (read) (current-proof-namespace)))))])
-    (if (not (>>? goal-val))
-        (proof-error "Not a goal" goal-loc)
-        (let-values ([(feedback ext) (interpret-step Δ goal-val body)])
-          (values feedback
-                  (if ext (lemma name goal ext) #f))))))
+  (match-let ([(def-node name goal body loc goal-loc) d])
+    (let ([goal-val
+           (with-handlers ([exn:fail? (λ (e) (proof-error (exn-message e) goal-loc))])
+             (with-input-from-string goal
+               (thunk (eval (read) (current-proof-namespace)))))])
+      (if (not (eval `(>>? ,goal-val) (current-proof-namespace)))
+          (proof-error (format "Not a goal: ~a" goal-val) goal-loc)
+          (let-values ([(feedback ext) (interpret-step Δ goal-val body)])
+            (values feedback
+                    (if ext (lemma name goal ext) #f)))))))
 
 (define/contract (interpret-step Δ goal s)
   (-> (listof lemma?)
@@ -91,19 +91,19 @@
       by-node?
       (values (listof feedback?)
               (or/c #f bind?)))
-  (match-define (by-node text sub-proofs loc) b)
-  (with-handlers ([exn:fail:proof? (λ (e) (raise e))]
-                  [exn:fail? (λ (e) (proof-error (exn-message e) loc))])
-    (define tac-val
-      (with-input-from-string text
-        (thunk (eval (read) (current-proof-namespace)))))
-    (match (tac-val goal)
-      [(proof-state subgoals ext)
-       (let loop ([feedback '()]
-                  [gs subgoals]
-                  [ps sub-proofs]
-                  [extracts '()])
-         (match* (gs ps)
+  (match-let ([(by-node text sub-proofs loc) b])
+    (with-handlers ([exn:fail:proof? (λ (e) (raise e))]
+                    [exn:fail? (λ (e) (proof-error (exn-message e) loc))])
+      (define tac-val
+        (with-input-from-string text
+          (thunk (eval (read) (current-proof-namespace)))))
+      (match (tac-val goal)
+        [(proof-state subgoals ext)
+         (let loop ([feedback '()]
+                    [gs subgoals]
+                    [ps sub-proofs]
+                    [extracts '()])
+           (match* (gs ps)
              [('() '())
               (values (cons (goal-feedback loc goal #t) ;; todo check for solved
                             feedback)
@@ -126,7 +126,7 @@
                        (length subgoals) (length sub-proofs))
                loc)]))]
         [non-refinement
-         (proof-error (format "Not a refinement: ~s" non-refinement) loc)])))
+         (proof-error (format "Not a refinement: ~s" non-refinement) loc)]))))
 
 
 
@@ -278,8 +278,9 @@
 
 (module+ test
   (require "refiner-demo.rkt")
-  (current-proof-namespace (namespace-anchor->namespace demo-anchor))
-
+  (define-namespace-anchor here)
+  (current-proof-namespace (namespace-anchor->namespace here))
+  
   (define-check (check-serialization p)
     (define tmp (make-temporary-file "grittytest~a"))
     (write-gritty-file p tmp #:exists 'replace)
@@ -288,7 +289,7 @@
         (void)
         (fail-check)))
 
-  (define test-proof-1
+  (define test-gritty-proof-1
     (module-node
      (list
       (def-node "prf"
@@ -297,13 +298,13 @@
         #'here1
         #'here2))))
 
-  (check-serialization test-proof-1)
+  (check-serialization test-gritty-proof-1)
 
-  (define out-1 (interpret-mod test-proof-1))
+  (define out-1 (interpret-mod test-gritty-proof-1))
   (check-equal? (length out-1) 1)
   (check-true (goal-feedback? (car out-1)))
 
-  (define test-proof-2
+  (define test-gritty-proof-2
     (module-node
      (list
       (def-node "prf"
@@ -316,13 +317,13 @@
         #'here1
         #'here2))))
 
-  (check-serialization test-proof-2)
+  (check-serialization test-gritty-proof-2)
 
-  (define out-2 (interpret-mod test-proof-2))
+  (define out-2 (interpret-mod test-gritty-proof-2))
   (check-equal? (length out-2) 3)
   (check-true (andmap goal-feedback? out-2))
 
-  (define test-proof-3
+  (define test-gritty-proof-3
     (module-node
      (list
       (def-node "prf"
@@ -337,8 +338,8 @@
         #'here1
         #'here2))))
 
-  (check-serialization test-proof-3)
+  (check-serialization test-gritty-proof-3)
 
-  (define out-3 (interpret-mod test-proof-3))
+  (define out-3 (interpret-mod test-gritty-proof-3))
   (check-equal? (length out-3) 3)
   (check-true (andmap goal-feedback? out-3)))
