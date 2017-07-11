@@ -12,6 +12,7 @@
 (define-signature CTT
   ; sorts
   (tm () (SORT))
+  (triv () (SORT))
   (cfg () (SORT))
 
   ; machine configurations
@@ -39,7 +40,7 @@
    (tm))
 
   ; canonical term formers
-  (ax () (tm))
+  (ax () (triv))
   (tt () (tm))
   (ff () (tm))
   (pair
@@ -65,23 +66,24 @@
   (ap
    ([e1 (arity () (tm))]
     [e2 (arity () (tm))])
-   (tm))
+   (tm)))
 
-  ; forms of judgments
+(define-signature JDG
   (eq-ty
    ([A (arity () (tm))]
     [B (arity () (tm))])
-   (SORT))
+   (triv))
   
   (is-inh
    ([A (arity () (tm))])
-   (SORT))
+   (tm))
 
   (is-eq
    ([e1 (arity () (tm))]
     [e2 (arity () (tm))]
     [A (arity () (tm))])
-   (SORT)))
+   (triv)))
+
 
 (define (ret e)
   (cut e (x) (plug x)))
@@ -167,7 +169,7 @@
   ()
   (ff))
 
-(define-rule (bool/L/inh z)
+(define-rule (bool/L/inh z) #:sig CTT JDG
   (>> (and Γ (with-hyp Γ0 z  () (is-inh (bool)) Γ1))
       (is-inh (unapply C z)))
   (define Γ/tt (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (tt))))
@@ -177,7 +179,7 @@
    [Z (>> Γ (eq-ty (C z) (C z)))])
   (bool-if (plug z) (plug* X Γ/tt) (plug* X Γ/ff)))
 
-(define-rule (bool/L/eq-ty z)
+(define-rule (bool/L/eq-ty z) #:sig CTT JDG
   (>> (and Γ (with-hyp Γ0 z  () (is-inh (bool)) Γ1))
       (eq-ty (unapply A1 z) (unapply A2 z)))
   (define Γ/tt (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (tt))))
@@ -187,14 +189,14 @@
   (ax))
 
 
-(define-rule (dfun/R x)
+(define-rule (dfun/R x) #:sig CTT JDG
   (>> Γ (is-inh (dfun A (y) By)))
   (define (ΓA x) (ctx-set Γ x (is-inh A)))
   ([X (>> (ΓA x) (is-inh (subst ([y () x]) By)))]
    [Y (>> Γ (eq-ty A A))])
   (lam (x) (plug* X (ΓA x))))
 
-(define-rule dsum/R
+(define-rule dsum/R #:sig CTT JDG
   (>> Γ (is-inh (dsum A (x) Bx)))
   ([X (>> Γ (is-inh A))]
    [Y (>> Γ (is-inh (subst ([x () (plug* X Γ)]) Bx)))]
@@ -203,22 +205,22 @@
   (pair (plug* X Γ) (plug* Y Γ)))
 
 
-(define-rule ax/eq
+(define-rule ax/eq #:sig CTT JDG
   (>> Γ (is-eq (ax) (ax) (unit)))
   ()
   (ax))
 
-(define-rule tt/eq
+(define-rule tt/eq #:sig CTT JDG
   (>> Γ (is-eq (tt) (tt) (bool)))
   ()
   (ax))
 
-(define-rule ff/eq
+(define-rule ff/eq #:sig CTT JDG
   (>> Γ (is-eq (ff) (ff) (bool)))
   ()
   (ax))
 
-(define-rule (lam/eq x)
+(define-rule (lam/eq x) #:sig CTT JDG
   (>> Γ (is-eq (lam (x1) e1x1) (lam (x2) e2x2) (dfun A (x3) Bx3)))
   (define (ΓA x) (ctx-set Γ x (is-inh A)))
   ([X (>> (ΓA x)
@@ -229,7 +231,7 @@
    [Y (>> Γ (eq-ty A A))])
   (ax))
 
-(define-rule pair/eq
+(define-rule pair/eq #:sig CTT JDG
   (>> Γ (is-eq (pair e10 e20) (pair e11 e21) (dsum A (x) Bx)))
   ([X (>> Γ (is-eq e10 e11 A))]
    [Y (>> Γ (is-eq e20 e21 (subst ([x () e10]) Bx)))]
@@ -237,22 +239,22 @@
           (eq-ty Bx Bx))])
   (ax))
 
-(define-rule eq/direct-computation
+(define-rule eq/direct-computation #:sig CTT JDG
   (>> Γ (is-eq e1 e2 A))
   ([X (>> Γ (is-eq (eval e1) (eval e2) (eval A)))])
   (plug* X Γ))
 
-(define-rule eq-ty/direct-computation
+(define-rule eq-ty/direct-computation #:sig CTT JDG
   (>> Γ (eq-ty A1 A2))
   ([X (>> Γ (eq-ty (eval A1) (eval A2)))])
   (plug* X Γ))
 
-(define-rule inh/direct-computation
+(define-rule inh/direct-computation #:sig CTT JDG
   (>> Γ (is-inh A))
   ([X (>> Γ (is-inh (eval A)))])
   (plug* X Γ))
 
-(define-rule (hyp x)
+(define-rule (hyp x) #:sig CTT JDG
   (>> (and Γ (with-hyp Γ0 x () tyx Γ1)) goalTy)
   (if (not (equal? goalTy tyx))
       (raise-refinement-error
