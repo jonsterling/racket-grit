@@ -54,6 +54,15 @@
   (require rackunit))
 
 
+(define ctx?
+  (listof (cons/c free-name? any/c)))
+
+
+(define tele?
+  (listof scope?))
+
+
+
 (struct arity (domain codomain)
   #:omit-define-syntaxes
   #:extra-constructor-name raw-make-arity
@@ -218,17 +227,27 @@
        (syntax/loc stx
          (as-atomic-term (make-plug x (list e ...))))])))
 
-(define (under-scope f sc)
+(define sort?
+  (or/c SORT? plug?))
+
+(define spine?
+  (listof bind?))
+
+(define/contract (under-scope f sc)
+  (-> any/c scope? scope?)
   (match-define (cons vars body) (auto-instantiate sc))
   (abstract vars (f body)))
 
-(define (make-arity tele cod)
+(define/contract (make-arity tele cod)
+  (-> tele? scope? arity?)
   (raw-make-arity (as-telescope tele) (under-scope as-sort cod)))
 
-(define (make-bind sc)
+(define/contract (make-bind sc)
+  (-> scope? bind?)
   (raw-make-bind (under-scope as-atomic-term sc)))
 
-(define (make-plug x sp)
+(define/contract (make-plug x sp)
+  (-> free-name? (listof any/c) plug?)
   (raw-make-plug x (as-spine sp)))
 
 (define (as-arity tm)
@@ -391,17 +410,6 @@
 (define (snoc xs x)
   (append xs (list x)))
 
-(define ctx?
-  (listof (cons/c free-name? any/c)))
-
-(define sort?
-  (or/c SORT? plug?))
-
-(define tele?
-  (listof scope?))
-
-(define spine?
-  (listof bind?))
 
 (define/contract (ctx->telescope ctx)
   (-> ctx? tele?)

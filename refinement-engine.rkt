@@ -74,7 +74,7 @@
      (append ctx dom-ctx)
      rctx
      (instantiate cod xs)))
-  (make-arity dom-ctx (abstract xs tau)))
+  (make-arity (ctx->telescope dom-ctx) (abstract xs tau)))
 
 
 (module hyp-pattern racket/base
