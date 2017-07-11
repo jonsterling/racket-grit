@@ -277,10 +277,13 @@
   (equal? (erase-srclocs v1) (erase-srclocs v2)))
 
 (module+ test
-  (require "refiner-demo.rkt")
-  (define-namespace-anchor here)
+  (module proof-module racket
+    (require "refiner-demo.rkt")
+    (provide here)
+    (define-namespace-anchor here))
+  (require 'proof-module)
   (current-proof-namespace (namespace-anchor->namespace here))
-  
+
   (define-check (check-serialization p)
     (define tmp (make-temporary-file "grittytest~a"))
     (write-gritty-file p tmp #:exists 'replace)
