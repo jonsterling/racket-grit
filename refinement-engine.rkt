@@ -26,7 +26,7 @@
  id-tac
  >> >>-ty plug* bind*
  tac/c
- subgoals eta
+ subgoals var->term
  raise-refinement-error)
 
 (provide >> subgoals >>? >>-ty
@@ -34,45 +34,45 @@
 
 
 
-(define refinement-ctx?
+(define refinement-ctx/c
   (listof
    (cons/c
     free-name?
     arity?)))
 
-(define/contract (check-sort-refinement ctx rctx refn)
-  (-> ctx? refinement-ctx? plug? sort?)
-  (define args (plug-spine refn))
-  (define arity (dict-ref rctx (plug-var refn)))
+(define/contract (check-sort-refinement ctx refinement-ctx sort-refinement)
+  (-> ctx? refinement-ctx/c plug? sort?)
+  (define args (plug-spine sort-refinement))
+  (define arity (dict-ref refinement-ctx (plug-var sort-refinement)))
   (check-spine ctx (arity-domain arity) args)
   (instantiate (arity-codomain arity) args))
 
 ; TODO: check this code and make sure it is correct
-(define/contract (check-telescope-refinement ctx rctx tele)
-  (-> ctx? refinement-ctx? tele? ctx?)
+(define/contract (check-telescope-refinement ctx refinement-ctx tele)
+  (-> ctx? refinement-ctx/c tele? ctx?)
   (define (aux ctx env input output)
     (match input
-      ['() output]
+      ['() (reverse output)]
       [(cons sc tele)
-       (define arity (check-arity-refinement ctx rctx (instantiate sc env)))
+       (define arity (check-arity-refinement ctx refinement-ctx (instantiate sc env)))
        (define x (fresh))
        (aux
         (ctx-set ctx x arity)
         (append env (list x))
         tele
-        (append output (list (cons x arity))))]))
+        (cons (cons x arity) output))]))
   (aux ctx '()  tele '()))
 
-(define/contract (check-arity-refinement ctx rctx refn)
-  (-> ctx? refinement-ctx? arity? arity?)
-  (define dom (arity-domain refn))
-  (define cod (arity-codomain refn))
-  (define dom-ctx (check-telescope-refinement ctx rctx dom))
+(define/contract (check-arity-refinement ctx refinement-ctx arity-refinement)
+  (-> ctx? refinement-ctx/c arity? arity?)
+  (define dom (arity-domain arity-refinement))
+  (define cod (arity-codomain arity-refinement))
+  (define dom-ctx (check-telescope-refinement ctx refinement-ctx dom))
   (define xs (map car dom-ctx))
   (define tau
     (check-sort-refinement
      (append ctx dom-ctx)
-     rctx
+     refinement-ctx
      (instantiate cod xs)))
   (make-arity (ctx->telescope dom-ctx) (abstract xs tau)))
 
@@ -240,18 +240,18 @@
 (require 'sequent)
 
 
-(define/contract (eta cell)
+(define/contract (var->term cell)
   (-> (cons/c free-name? arity?) bind?)
   (match cell
     [(cons x (and (app arity-domain tele) (app arity-codomain cod)))
      (let* ([xs (map (λ (sc) (fresh)) tele)]
             [ctx (telescope->ctx xs tele)])
        (make-bind
-        (abstract xs (make-plug x (map eta ctx)))))]))
+        (abstract xs (make-plug x (map var->term ctx)))))]))
 
 (define/contract (plug* x Γ)
   (-> free-name? ctx? plug?)
-  (make-plug x (map eta Γ)))
+  (make-plug x (map var->term Γ)))
 
 (define/contract (bind* Γ e)
   (-> ctx? any/c bind?)
@@ -267,20 +267,18 @@
   (raise (exn:fail:refinement msg (current-continuation-marks) goal)))
 
 (define ((ok-goal? lf-sig ref-sig) goal)
-  (with-handlers
-      ([exn:fail? (λ (_) #f)])
+  (with-handlers ([exn:fail? (λ (_) #f)])
     (check-arity-refinement lf-sig ref-sig (>>-ty goal))
     #t))
 
 (define (ok-proof-state? lf-sig ref-sig goal)
-  (with-handlers
-      ([exn:fail? (λ (_) #f)])
-    (match-lambda
-      [(proof-state subgoals output)
+  (match-lambda
+    [(proof-state subgoals output)
+     (with-handlers ([exn:fail? (λ (_) #f)])
        (define ctx (check-telescope-refinement lf-sig ref-sig (map (λ (goal) (under-scope >>-ty goal)) subgoals)))
        (define arity (check-arity-refinement lf-sig ref-sig (>>-ty goal)))
        (check-term (append lf-sig ctx) (instantiate output (map car ctx)) arity)
-       #t])))
+       #t)]))
 
 (define (ok-rule? lf-sig ref-sig)
   (match* (lf-sig ref-sig)
@@ -321,7 +319,7 @@
   (λ (goal)
     (subgoals
      ((X goal))
-     (eta (cons X (>>-ty goal))))))
+     (var->term (cons X (>>-ty goal))))))
 
 ; Analogous to the THENL tactical
 (define/contract (multicut t1 . ts)
@@ -392,10 +390,9 @@
     ['() t1]
     [(cons t ts)
      (λ (goal)
-       (with-handlers
-           ([exn:fail:refinement?
-             (λ (e)
-               ((apply orelse (cons t ts)) goal))])
+       (with-handlers ([exn:fail:refinement?
+                        (λ (e)
+                          ((apply orelse (cons t ts)) goal))])
          (t1 goal)))]))
 
 
@@ -404,7 +401,7 @@
   (printf "~a: ~a" (source-location->string loc) goal)
   (subgoals
    ([X goal])
-   (eta `(,X . ,(>>-ty goal)))))
+   (var->term `(,X . ,(>>-ty goal)))))
 
 (define-syntax (probe stx)
   (syntax-parse stx

@@ -229,8 +229,8 @@
        (syntax/loc stx
          (as-atomic-term (make-plug x (list e ...))))])))
 
-(define sort?
-  (or/c SORT? plug?))
+(define (sort? e)
+  (or (SORT? e) (plug? e)))
 
 (define spine?
   (listof bind?))
