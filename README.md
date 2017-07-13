@@ -3,3 +3,14 @@ GRIT
 ========================
 
 The kernel around which a PRL forms.
+
+
+Saved Proofs
+------
+
+The format of proofs is called `gritty`. To check a proof, use the `gritty.rkt` module as follows:
+```
+racket gritty.rkt refiner-demo.rkt test.grit
+```
+
+
