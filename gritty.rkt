@@ -1,7 +1,7 @@
 #lang racket
 
 (require "locally-nameless.rkt" "logical-framework.rkt" "refinement-engine.rkt")
-(require syntax/srcloc)
+(require (for-syntax syntax/parse) syntax/srcloc)
 
 (module+ test (require rackunit))
 
@@ -183,22 +183,6 @@
 (struct boring presentation-goal () #:transparent)
 
 
-(define/contract (mark-problem goal)
-  tac/c
-  (subgoals
-   ((X (problem goal)))
-   (eta (cons X (>>-ty goal)))))
-
-(define/contract (mark-boring goal)
-  tac/c
-  (subgoals
-   ((X (boring goal)))
-   (eta (cons X (>>-ty goal)))))
-
-(define/contract (tactic->presentation-tactic t)
-  (-> tac/c tac/c)
-  (then t mark-problem))
-
 (struct exn:fail:read-gritty exn:fail ())
 
 (define gritty-step/c
@@ -215,6 +199,7 @@
   (-> path-string? gritty-module/c)
   (with-input-from-file filename
     (thunk
+     (port-count-lines! (current-input-port))
      (define stxs
        (for/list ([stx (in-producer (thunk (read-syntax filename)) eof-object?)])
          stx))
@@ -304,79 +289,116 @@
 (define (same-proof? v1 v2)
   (equal? (erase-srclocs v1) (erase-srclocs v2)))
 
+(define-syntax (with-logic-module stx)
+  (syntax-parse stx
+    [(_ logic-module body ...)
+     (syntax/loc stx
+       ;; This is the magic incantation to create a namespace using already-loaded modules
+       (let ([ns (make-base-namespace)])
+         ;; Re-use the currently-loaded versions of these modules, to avoid generativity getting
+         ;; in the way of struct types etc
+         (for ([mod '("locally-nameless.rkt" "logical-framework.rkt" "refinement-engine.rkt")])
+           (namespace-attach-module (current-namespace) mod ns))
+         (parameterize ([current-namespace ns])
+           (for ([mod '("locally-nameless.rkt" "logical-framework.rkt" "refinement-engine.rkt")])
+             (namespace-require mod))
+           ;; Finally load the user's logic module
+           (namespace-require logic-module))
+         (parameterize ([current-proof-namespace ns])
+           body ...)))]))
+
+(define (gritty-check logic proof)
+  (with-logic-module logic
+    (define ast (read-gritty-file proof))
+    (let ([feedback (interpret-mod ast)])
+      (for ([f feedback])
+        (match f
+          [(goal-feedback loc g solved?)
+           (printf "~a: ~a Goal\n" (source-location->string loc) (if solved? "Solved" "Unsolved") )
+           (pretty-print g)
+           (printf "\n")]
+          [(mistake-feedback loc msg)
+           (printf "~a: Error:\n~s\n\n" (source-location->string loc) msg)]
+          [(extract-feedback loc e)
+           (printf "~a: Extract:\n~s\n\n" (source-location->string loc) e)])))))
+
+(module+ main
+  (command-line
+   #:program "gritty-check"
+   #:args (logic proof)
+   (gritty-check logic proof)))
+
+
 (module+ test
-  (module proof-module racket
-    (require "refiner-demo.rkt")
-    (provide here)
-    (define-namespace-anchor here))
-  (require 'proof-module)
-  (current-proof-namespace (namespace-anchor->namespace here))
+  (with-logic-module "refiner-demo.rkt"
+    (define-simple-check (check-serialization p)
+      (define tmp (make-temporary-file "grittytest~a"))
+      (write-gritty-file p tmp #:exists 'replace)
+      (define p2 (read-gritty-file tmp))
+      (same-proof? p p2))
 
-  (define-simple-check (check-serialization p)
-    (define tmp (make-temporary-file "grittytest~a"))
-    (write-gritty-file p tmp #:exists 'replace)
-    (define p2 (read-gritty-file tmp))
-    (same-proof? p p2))
-  
-  (define-simple-check (check-goal-feedback? x)
-    (goal-feedback? x))
+    (define-simple-check (check-goal-feedback? x)
+      (goal-feedback? x))
 
-  (define test-gritty-proof-1
-    (module-node
-     (list
-      (def-node "prf"
-        "(>> '() (is-true (conj (disj (T) (F)) (conj (T) (T)))))"
-        (shed-node "stuff" #'here)
-        #'here1
-        #'here2))))
+    (define test-gritty-proof-1
+      (module-node
+       (list
+        (def-node "prf"
+          "(>> '() (is-true (conj (disj (T) (F)) (conj (T) (T)))))"
+          (shed-node "stuff" #'here)
+          #'here1
+          #'here2))))
 
-  (check-serialization test-gritty-proof-1)
+    (check-serialization test-gritty-proof-1)
 
-  (define out-1 (interpret-mod test-gritty-proof-1))
-  (check-equal? (length out-1) 1)
-  (check-goal-feedback? (car out-1))
+    (define out-1 (interpret-mod test-gritty-proof-1))
+    (check-equal? (length out-1) 1)
+    (check-goal-feedback? (car out-1))
 
-  (define test-gritty-proof-2
-    (module-node
-     (list
-      (def-node "prf"
-        "(>> '() (is-true (conj (disj (T) (F)) (conj (T) (T)))))"
-        (by-node "conj/R"
-                 (list
-                  (shed-node "stuff" #'here)
-                  (shed-node "more stuff" #'here))
-                 #'here)
-        #'here1
-        #'here2))))
+    (define test-gritty-proof-2
+      (module-node
+       (list
+        (def-node "prf"
+          "(>> '() (is-true (conj (disj (T) (F)) (conj (T) (T)))))"
+          (by-node "conj/R"
+                   (list
+                    (shed-node "stuff" #'here)
+                    (shed-node "more stuff" #'here))
+                   #'here)
+          #'here1
+          #'here2))))
 
-  (check-serialization test-gritty-proof-2)
+    (check-serialization test-gritty-proof-2)
 
-  (define out-2 (interpret-mod test-gritty-proof-2))
-  (check-equal? (length out-2) 3)
-  (check-goal-feedback? (car out-2))
-  (check-goal-feedback? (cadr out-2))
-  (check-goal-feedback? (caddr out-2))
+    (define out-2 (interpret-mod test-gritty-proof-2))
+    (check-equal? (length out-2) 3)
+    (check-goal-feedback? (car out-2))
+    (check-goal-feedback? (cadr out-2))
+    (check-goal-feedback? (caddr out-2))
 
-  (define test-gritty-proof-3
-    (module-node
-     (list
-      (def-node "prf"
-        "(>> '() (is-true (conj (disj (T) (F)) (conj (T) (T)))))"
-        (by-node "conj/R"
-                 (list
-                  (by-node "(orelse (then disj/R/1 T/R) (then disj/R/2 T/R))"
-                           '()
-                           #'here)
-                  (shed-node "more stuff" #'here))
-                 #'here)
-        #'here1
-        #'here2))))
+    (define test-gritty-proof-3
+      (module-node
+       (list
+        (def-node "prf"
+          "(>> '() (is-true (conj (disj (T) (F)) (conj (T) (T)))))"
+          (by-node "conj/R"
+                   (list
+                    (by-node "(orelse (then disj/R/1 T/R) (then disj/R/2 T/R))"
+                             '()
+                             #'here)
+                    (shed-node "more stuff" #'here))
+                   #'here)
+          #'here1
+          #'here2))))
 
-  (check-serialization test-gritty-proof-3)
+    (check-serialization test-gritty-proof-3)
 
-  (define out-3 (interpret-mod test-gritty-proof-3))
-  (check-equal? (length out-3) 3)
-  (check-goal-feedback? (car out-3))
-  (check-goal-feedback? (cadr out-3))
-  (check-goal-feedback? (caddr out-3))
-  )
+    (define out-3 (interpret-mod test-gritty-proof-3))
+    (check-equal? (length out-3) 3)
+    (check-goal-feedback? (car out-3))
+    (check-goal-feedback? (cadr out-3))
+    (check-goal-feedback? (caddr out-3)))
+
+  (check-not-false
+   (regexp-match #rx"Solved Goal"
+                 (with-output-to-string (thunk (gritty-check "refiner-demo.rkt" "test.grit"))))))

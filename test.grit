@@ -1,0 +1,4 @@
+(def "prf" "(>> '() (is-true (conj (disj (T) (F)) (conj (T) (T)))))"
+  (by "conj/R"
+      (by "(orelse (then disj/R/1 T/R) (then disj/R/2 T/R))")
+      (shed "more stuff")))
