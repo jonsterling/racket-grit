@@ -36,6 +36,7 @@ before_install:
 
 install:
  - raco pkg install -n grit --deps search-auto
+ - raco make *.rkt
 
 before_script:
 

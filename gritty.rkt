@@ -1,6 +1,7 @@
 #lang racket
 
 (require "locally-nameless.rkt" "logical-framework.rkt" "refinement-engine.rkt")
+(require syntax/srcloc)
 
 (module+ test (require rackunit))
 
@@ -95,16 +96,16 @@
 
 (define/contract (interpret-def Δ d)
   (-> (listof lemma?) def-node? (values (listof feedback?) (or/c #f lemma?)))
-  (match-define (def-node name goal body loc goal-loc) d)
-  (let ([goal-val
-         (with-handlers ([exn:fail? (λ (e) (proof-error (exn-message e) goal-loc))])
-           (with-input-from-string goal
-             (thunk (eval (read) (current-proof-namespace)))))])
-    (if (not (>>? goal-val))
-        (proof-error "Not a goal" goal-loc)
-        (let-values ([(feedback ext) (interpret-step Δ goal-val body)])
-          (values feedback
-                  (if ext (lemma name goal ext) #f))))))
+  (match-let ([(def-node name goal body loc goal-loc) d])
+    (let ([goal-val
+           (with-handlers ([exn:fail? (λ (e) (proof-error (exn-message e) goal-loc))])
+             (with-input-from-string goal
+               (thunk (eval (read) (current-proof-namespace)))))])
+      (if (not (eval `(>>? ,goal-val) (current-proof-namespace)))
+          (proof-error (format "Not a goal: ~a" goal-val) goal-loc)
+          (let-values ([(feedback ext) (interpret-step Δ goal-val body)])
+            (values feedback
+                    (if ext (lemma name goal ext) #f)))))))
 
 (define/contract (interpret-step Δ goal s)
   (-> (listof lemma?)
@@ -123,19 +124,19 @@
       by-node?
       (values (listof feedback?)
               (or/c #f bind?)))
-  (match-define (by-node text sub-proofs loc) b)
-  (with-handlers ([exn:fail:proof? (λ (e) (raise e))]
-                  [exn:fail? (λ (e) (proof-error (exn-message e) loc))])
-    (define tac-val
-      (with-input-from-string text
-        (thunk (eval (read) (current-proof-namespace)))))
-    (match (tac-val goal)
-      [(proof-state subgoals ext)
-       (let loop ([feedback '()]
-                  [gs subgoals]
-                  [ps sub-proofs]
-                  [extracts '()])
-         (match* (gs ps)
+  (match-let ([(by-node text sub-proofs loc) b])
+    (with-handlers ([exn:fail:proof? (λ (e) (raise e))]
+                    [exn:fail? (λ (e) (proof-error (exn-message e) loc))])
+      (define tac-val
+        (with-input-from-string text
+          (thunk (eval (read) (current-proof-namespace)))))
+      (match (tac-val goal)
+        [(proof-state subgoals ext)
+         (let loop ([feedback '()]
+                    [gs subgoals]
+                    [ps sub-proofs]
+                    [extracts '()])
+           (match* (gs ps)
              [('() '())
               (values (cons (goal-feedback loc goal #t) ;; todo check for solved
                             feedback)
@@ -158,7 +159,7 @@
                        (length subgoals) (length sub-proofs))
                loc)]))]
         [non-refinement
-         (proof-error (format "Not a refinement: ~s" non-refinement) loc)])))
+         (proof-error (format "Not a refinement: ~s" non-refinement) loc)]))))
 
 
 
@@ -203,13 +204,129 @@
   (-> tac/c tac/c)
   (then t mark-problem))
 
+(struct exn:fail:read-gritty exn:fail ())
 
+(define gritty-step/c
+  (recursive-contract
+   (or/c (struct/c by-node string? (listof gritty-step/c) source-location?)
+         (struct/c shed-node string? source-location?))
+   #:chaperone))
+(define gritty-def/c (struct/c def-node string? string? gritty-step/c source-location? source-location?))
+(define gritty-module/c (struct/c module-node (listof gritty-def/c)))
+
+
+;; Deserialize a written Gritty file
+(define/contract (read-gritty-file filename)
+  (-> path-string? gritty-module/c)
+  (with-input-from-file filename
+    (thunk
+     (define stxs
+       (for/list ([stx (in-producer (thunk (read-syntax filename)) eof-object?)])
+         stx))
+     (stx->mod stxs))
+    #:mode 'text))
+
+(define/contract (stx->mod stxs)
+  (-> (listof syntax?) gritty-module/c)
+  (module-node
+   (for/list ([stx stxs])
+     (stx->def stx))))
+
+(define/contract (stx->def stx)
+  (-> syntax? gritty-def/c)
+  (match (syntax-e stx)
+    [(list (app syntax->datum 'def) (app syntax->datum name) (and goal-loc (app syntax->datum goal)) step)
+     (if (and (string? name) (string? goal))
+         (def-node name goal (stx->step step) stx goal-loc)
+         (raise (exn:fail:read-gritty (format "Name and goal must be strings, but are: ~a and ~a"
+                                              name goal)
+                                      (current-continuation-marks))))]
+    [_ (raise (exn:fail:read-gritty (format "Bad def: ~a" (syntax->datum stx))
+                                    (current-continuation-marks)))]))
+
+(define/contract (stx->step stx)
+  (-> syntax? gritty-step/c)
+  (match (syntax-e stx)
+    [(list (app syntax->datum 'shed) (app syntax->datum (? string? input)))
+     (shed-node input stx)]
+    [(list (app syntax->datum 'by)
+           (app syntax->datum (? string? tactic))
+           steps ...)
+     (by-node tactic
+              (for/list ([s steps ])
+                (stx->step s))
+              stx)]
+    [_ (raise (exn:fail:read-gritty (format "Bad step: ~a" (syntax->datum stx)) (current-continuation-marks)))]))
+
+;; Serialize a Gritty file
+(define/contract (write-gritty-file mod filename #:exists (exists-flag 'error))
+  (->* (gritty-module/c path-string?)
+       (#:exists (or/c 'error 'append 'update 'can-update
+                       'replace 'truncate
+                       'must-truncate 'truncate/replace))
+       void?)
+  (define port (open-output-file filename #:mode 'text #:exists exists-flag))
+  (for ([d (mod->sexpr mod)])
+    (pretty-print d port 1))
+  (close-output-port port))
+
+
+(define step-sexpr/c
+  (flat-rec-contract step-sexpr/c
+                     (cons/c 'by (cons/c string? (listof step-sexpr/c)))
+                     (list/c 'shed string?)))
+(define def-sexpr/c
+  (list/c 'def string? string?
+          step-sexpr/c))
+
+(define/contract (mod->sexpr mod)
+  (-> gritty-module/c (listof def-sexpr/c))
+  (for/list ([d (module-node-defs mod)])
+    (def->sexpr d)))
+
+(define/contract (def->sexpr def)
+  (-> gritty-def/c def-sexpr/c)
+  (match-define (def-node name goal step _ _) def)
+  `(def ,name ,goal ,(step->sexpr step)))
+
+(define/contract (step->sexpr step)
+  (-> gritty-step/c step-sexpr/c)
+  (match step
+    [(shed-node text _) `(shed ,text)]
+    [(by-node tactic subs _) `(by ,tactic . ,(map step->sexpr subs))]))
+
+
+(define (erase-srclocs v)
+  (match v
+    [(module-node xs) (module-node (map erase-srclocs xs))]
+    [(def-node name goal step _ _)
+     (def-node name goal (erase-srclocs step) #f #f)]
+    [(by-node tactic steps _)
+     (by-node tactic (map erase-srclocs steps) #f)]
+    [(shed-node text _)
+     (shed-node text #f)]))
+
+(define (same-proof? v1 v2)
+  (equal? (erase-srclocs v1) (erase-srclocs v2)))
 
 (module+ test
-  (require "refiner-demo.rkt")
-  (current-proof-namespace (namespace-anchor->namespace demo-anchor))
+  (module proof-module racket
+    (require "refiner-demo.rkt")
+    (provide here)
+    (define-namespace-anchor here))
+  (require 'proof-module)
+  (current-proof-namespace (namespace-anchor->namespace here))
 
-  (define test-proof-1
+  (define-simple-check (check-serialization p)
+    (define tmp (make-temporary-file "grittytest~a"))
+    (write-gritty-file p tmp #:exists 'replace)
+    (define p2 (read-gritty-file tmp))
+    (same-proof? p p2))
+  
+  (define-simple-check (check-goal-feedback? x)
+    (goal-feedback? x))
+
+  (define test-gritty-proof-1
     (module-node
      (list
       (def-node "prf"
@@ -218,11 +335,13 @@
         #'here1
         #'here2))))
 
-  (define out-1 (interpret-mod test-proof-1))
-  (check-equal? (length out-1) 1)
-  (check-true (goal-feedback? (car out-1)))
+  (check-serialization test-gritty-proof-1)
 
-  (define test-proof-2
+  (define out-1 (interpret-mod test-gritty-proof-1))
+  (check-equal? (length out-1) 1)
+  (check-goal-feedback? (car out-1))
+
+  (define test-gritty-proof-2
     (module-node
      (list
       (def-node "prf"
@@ -234,11 +353,16 @@
                  #'here)
         #'here1
         #'here2))))
-  (define out-2 (interpret-mod test-proof-2))
-  (check-equal? (length out-2) 3)
-  (check-true (andmap goal-feedback? out-2))
 
-  (define test-proof-3
+  (check-serialization test-gritty-proof-2)
+
+  (define out-2 (interpret-mod test-gritty-proof-2))
+  (check-equal? (length out-2) 3)
+  (check-goal-feedback? (car out-2))
+  (check-goal-feedback? (cadr out-2))
+  (check-goal-feedback? (caddr out-2))
+
+  (define test-gritty-proof-3
     (module-node
      (list
       (def-node "prf"
@@ -253,6 +377,11 @@
         #'here1
         #'here2))))
 
-  (define out-3 (interpret-mod test-proof-3))
+  (check-serialization test-gritty-proof-3)
+
+  (define out-3 (interpret-mod test-gritty-proof-3))
   (check-equal? (length out-3) 3)
-  (check-true (andmap goal-feedback? out-3)))
+  (check-goal-feedback? (car out-3))
+  (check-goal-feedback? (cadr out-3))
+  (check-goal-feedback? (caddr out-3))
+  )
