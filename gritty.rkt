@@ -162,31 +162,26 @@
          (proof-error (format "Not a refinement: ~s" non-refinement) loc)]))))
 
 
+;; A presentation goal is a proof goal that is either boring (to be
+;; solved by automation) or a genuine problem (to be solved by human
+;; refinement)
+(struct presentation-goal (goal)
+  #:transparent
+  #:property prop:bindings
+  (bindings-support
+   (λ (pg frees i)
+     (match-define (presentation-goal g) pg)
+     (match-define (bindings-support abs _) (bindings-accessor g))
+     ((if (problem? pg) problem boring)
+      (abs g frees i)))
+   (λ (pg i new-exprs)
+     (match-define (presentation-goal g) pg)
+     (match-define (bindings-support _ inst) (bindings-accessor g))
+     ((if (problem? pg) problem boring)
+      (inst g i new-exprs)))))
+(struct problem presentation-goal () #:transparent)
+(struct boring presentation-goal () #:transparent)
 
-
-(module goals racket/base
-  (require racket/match "locally-nameless.rkt")
-  ;; A presentation goal is a proof goal that is either boring (to be
-  ;; solved by automation) or a genuine problem (to be solved by human
-  ;; refinement)
-  (struct presentation-goal (goal)
-    #:transparent
-    #:property prop:bindings
-    (bindings-support
-     (λ (pg frees i)
-       (match-define (presentation-goal g) pg)
-       (match-define (bindings-support abs _) (bindings-accessor g))
-       ((if (problem? pg) problem boring)
-        (abs g frees i)))
-     (λ (pg i new-exprs)
-       (match-define (presentation-goal g) pg)
-       (match-define (bindings-support _ inst) (bindings-accessor g))
-       ((if (problem? pg) problem boring)
-        (inst g i new-exprs)))))
-  (struct problem presentation-goal () #:transparent)
-  (struct boring presentation-goal () #:transparent)
-  (provide (struct-out problem) (struct-out boring) presentation-goal?))
-(require 'goals)
 
 (define/contract (mark-problem goal)
   tac/c
