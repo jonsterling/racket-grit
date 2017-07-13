@@ -159,7 +159,7 @@
  (define-rule unit/R
    (>> Γ (is-inh unit))
    ()
-   (ax))
+   (tt))
 
  (define-rule bool/R/1
    (>> Γ (is-inh bool))
