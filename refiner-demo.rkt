@@ -7,6 +7,7 @@
 
 (module+ test (require rackunit))
 
+; A little simply-typed evidence semantics. See ctt.rkt for a more advanced example.
 (define-signature Lang
   (prop () (SORT))
 
