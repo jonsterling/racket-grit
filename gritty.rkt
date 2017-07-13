@@ -4,6 +4,39 @@
 
 (module+ test (require rackunit))
 
+;;; Commentary:
+;; This is the disk format of interactively-constructed proofs, as
+;; well as an independent checker for them.
+;;
+;; The basic architecture will be:
+;;
+;;  * No higher-order data is stored. Proof trees include strings that
+;;    are eval'd WRT a Racket namespace to construct both the bits of
+;;    LF and the tactics. This lets us use a very simple
+;;    human-readable serializer/deserializer.
+;;
+;;  * The proof checker takes serialized proof trees as input and
+;;    emits a list of feedback. This is enough to be the basis for a
+;;    somewhat primitive Emacs mode for interactively editing the dump
+;;    files, as well as Travis for saved proofs.
+;;
+;;  * As in Nuprl, a proof consists of a goal followed by a tree of
+;;    refinements. The refinement tree nodes are labeled by tactic
+;;    scripts that produce the obligations solved by their subtrees.
+;;    Unlike Nuprl, multiple proofs can be chained in a module.  We
+;;    call nodes on which refinement has not yet been attempted
+;;    "sheds", following Epigram, but they're basically just Nuprl's
+;;    unrefiend nodes.
+;;
+;;  * One mistake should not be fatal to a whole proof, merely to the
+;;    subtree underneath it.
+;;
+;;  * We talked about having separate presentation tactics and
+;;    annotating subgoals with whether they are boring, but on further
+;;    reflection, I think we should just extend a proof state so that
+;;    the subgoals can have arbitrary metadata attached and then use
+;;    that for the prover (like Nuprl WF goals).
+
 ;; Proofs output feedback
 (struct goal-feedback (loc goal solved?) #:transparent)
 (struct mistake-feedback (loc message) #:transparent)
