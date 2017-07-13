@@ -71,74 +71,77 @@
    (tm)))
 
 
-(define-rule (hyp x) #:sig Lang Jdg
-  (>> (with-hyp Γ0 x () tyx Γ1)
-      goalTy)
-  (if (not (equal? goalTy tyx))
-      (raise-refinement-error
-       (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy)
+(with-signature
+ Lang Jdg
+                
+ (define-rule (hyp x)
+   (>> (with-hyp Γ0 x () tyx Γ1)
        goalTy)
-      '())
-  ()
-  x)
+   (if (not (equal? goalTy tyx))
+       (raise-refinement-error
+        (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy)
+        goalTy)
+       '())
+   ()
+   x)
 
-(define-rule conj/R #:sig Lang Jdg
-  (>> Γ (is-true (conj p q)))
-  ([X (>> Γ (is-true p))]
-   [Y (>> Γ (is-true q))])
-  (pair (plug* X Γ) (plug* Y Γ)))
+ (define-rule conj/R
+   (>> Γ (is-true (conj p q)))
+   ([X (>> Γ (is-true p))]
+    [Y (>> Γ (is-true q))])
+   (pair (plug* X Γ) (plug* Y Γ)))
 
-(define-rule (conj/L x x0 x1) #:sig Lang Jdg
-  (>> (with-hyp Γ0 x () (is-true (conj p q)) Γ1)
-      (is-true (unapply r x)))
-  (define Γ/pq
-    (splice-context
-     Γ0
-     ([x0 (is-true p)] [x1 (is-true q)])
-     (Γ1 (pair x0 x1))))
-  ([X (>> Γ/pq (is-true (r (pair x0 x1))))])
-  (subst
-   ([x0 () (fst x)]
-    [x1 () (snd x)])
-   (plug* X Γ/pq)))
+ (define-rule (conj/L x x0 x1)
+   (>> (with-hyp Γ0 x () (is-true (conj p q)) Γ1)
+       (is-true (unapply r x)))
+   (define Γ/pq
+     (splice-context
+      Γ0
+      ([x0 (is-true p)] [x1 (is-true q)])
+      (Γ1 (pair x0 x1))))
+   ([X (>> Γ/pq (is-true (r (pair x0 x1))))])
+   (subst
+    ([x0 () (fst x)]
+     [x1 () (snd x)])
+    (plug* X Γ/pq)))
 
-(define-rule disj/R/1 #:sig Lang Jdg
-  (>> Γ (is-true (disj p q)))
-  ([X (>> Γ (is-true p))])
-  (inl (plug* X Γ)))
+ (define-rule disj/R/1
+   (>> Γ (is-true (disj p q)))
+   ([X (>> Γ (is-true p))])
+   (inl (plug* X Γ)))
 
-(define-rule disj/R/2 #:sig Lang Jdg
-  (>> Γ (is-true (disj p q)))
-  ([X (>> Γ (is-true q))])
-  (inr (plug* X Γ)))
+ (define-rule disj/R/2
+   (>> Γ (is-true (disj p q)))
+   ([X (>> Γ (is-true q))])
+   (inr (plug* X Γ)))
 
-(define-rule (disj/L x) #:sig Lang Jdg
-  (>> (with-hyp Γ0 x () (is-true (disj p q)) Γ1)
-      (is-true (unapply r x)))
-  (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (inl y))))
-  (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (inr y))))
-  ([L (>> (Γ/p x) (is-true (r (inl x))))]
-   [R (>> (Γ/q x) (is-true (r (inr x))))])
-  (split x (xl) (plug* L (Γ/p xl)) (xr) (plug* R (Γ/q xr))))
+ (define-rule (disj/L x)
+   (>> (with-hyp Γ0 x () (is-true (disj p q)) Γ1)
+       (is-true (unapply r x)))
+   (define (Γ/p y) (splice-context Γ0 ([y (is-true p)]) (Γ1 (inl y))))
+   (define (Γ/q y) (splice-context Γ0 ([y (is-true q)]) (Γ1 (inr y))))
+   ([L (>> (Γ/p x) (is-true (r (inl x))))]
+    [R (>> (Γ/q x) (is-true (r (inr x))))])
+   (split x (xl) (plug* L (Γ/p xl)) (xr) (plug* R (Γ/q xr))))
 
 
-(define-rule (imp/R x) #:sig Lang Jdg
-  (>> Γ (is-true (imp p q)))
-  (define (Γ/p x)
-    (ctx-set Γ x (is-true p)))
-  ([X (>> (Γ/p x) (is-true q))])
-  (lam (x) (plug* X (Γ/p x))))
+ (define-rule (imp/R x)
+   (>> Γ (is-true (imp p q)))
+   (define (Γ/p x)
+     (ctx-set Γ x (is-true p)))
+   ([X (>> (Γ/p x) (is-true q))])
+   (lam (x) (plug* X (Γ/p x))))
 
-(define-rule T/R #:sig Lang Jdg
-  (>> Γ (is-true (T)))
-  ()
-  (nil))
+ (define-rule T/R
+   (>> Γ (is-true (T)))
+   ()
+   (nil))
 
-(define-rule (F/L x) #:sig Lang Jdg
-  (>> (with-hyp Γ0 x () (is-true (F)) Γ1)
-      (is-true p))
-  ()
-  (nil))
+ (define-rule (F/L x)
+   (>> (with-hyp Γ0 x () (is-true (F)) Γ1)
+       (is-true p))
+   ()
+   (nil)))
 
 (define-syntax (lam/t stx)
   (syntax-parse stx

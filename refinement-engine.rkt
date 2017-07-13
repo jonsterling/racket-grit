@@ -9,6 +9,7 @@
   racket/match
   racket/dict
   racket/stxparam
+  racket/splicing
   syntax/srcloc
   "locally-nameless.rkt"
   "logical-framework.rkt")
@@ -326,8 +327,8 @@
 (define-syntax (with-signature stx)
   (syntax-parse stx
     [(_ lf-sig refinement-sig body ...)
-     #'(syntax-parameterize ([default-signature (syntax lf-sig)]
-                             [default-refinement-signature (syntax refinement-sig)])
+     #'(splicing-syntax-parameterize ([default-signature (syntax lf-sig)]
+                                      [default-refinement-signature (syntax refinement-sig)])
          body
          ...)]))
 
