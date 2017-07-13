@@ -340,6 +340,9 @@
     (define-simple-check (check-goal-feedback? x)
       (goal-feedback? x))
 
+    (define-simple-check (check-mistake-feedback? x)
+      (mistake-feedback? x))
+
     (define test-gritty-proof-1
       (module-node
        (list
@@ -397,7 +400,28 @@
     (check-equal? (length out-3) 3)
     (check-goal-feedback? (car out-3))
     (check-goal-feedback? (cadr out-3))
-    (check-goal-feedback? (caddr out-3)))
+    (check-goal-feedback? (caddr out-3))
+
+    (define test-gritty-proof-4
+      (module-node
+       (list (def-node "oops" "42" (shed-node "foo" #'here3) #'here1 #'here2))))
+    (check-serialization test-gritty-proof-4)
+    (define out-4 (interpret-mod test-gritty-proof-4))
+
+    (check-equal? (length out-4) 1)
+    (check-mistake-feedback? (car out-4))
+
+    (define test-gritty-proof-5
+      (module-node
+       (list (def-node "easy" "(>> '() (is-true (T)))"
+               (by-node "conj/R"
+                        '()
+                        #'here3) #'here1 #'here2))))
+    (check-serialization test-gritty-proof-5)
+    (define out-5 (interpret-mod test-gritty-proof-5))
+
+    (check-equal? (length out-5) 1)
+    (check-mistake-feedback? (car out-5)))
 
   (check-not-false
    (regexp-match #rx"Solved Goal"
