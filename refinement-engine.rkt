@@ -8,6 +8,7 @@
   racket/contract
   racket/match
   racket/dict
+  racket/stxparam
   syntax/srcloc
   "locally-nameless.rkt"
   "logical-framework.rkt")
@@ -27,6 +28,7 @@
  >> >>-ty plug* bind*
  tac/c
  subgoals var->term
+ with-signature
  raise-refinement-error)
 
 (provide >> subgoals >>? >>-ty
@@ -288,13 +290,22 @@
       ((goal (ok-goal? lf-sig ref-sig)))
       (result (goal) (ok-proof-state? lf-sig ref-sig goal)))]))
 
+(define-syntax-parameter default-signature #'#f)
+(define-syntax-parameter default-refinement-signature #'#f)
+
 (define-syntax (define-rule stx)
   (define (get-name h)
     (syntax-parse h
       [n:id #'n]
       [(h* e ...) (get-name #'h*)]))
   (syntax-parse stx
-    [(_ head (~optional (~seq #:sig lf-sig ref-sig) #:defaults ([lf-sig #'#f] [ref-sig #'#f])) goal definition:expr ... ((x:id subgoal) ...) extract)
+    [(_ head
+        (~optional
+         (~seq #:sig lf-sig ref-sig)
+         #:defaults
+         ([lf-sig (syntax-parameter-value #'default-signature)]
+          [ref-sig (syntax-parameter-value #'default-refinement-signature)]))
+        goal definition:expr ... ((x:id subgoal) ...) extract)
      (with-syntax ([rule-name (get-name #'head)])
        (syntax/loc stx
          (define head
@@ -310,6 +321,15 @@
                   (raise-refinement-error (format "Inapplicable: ~a" other-goal) other-goal)]))
              'rule-name)
             'rule-name 'caller))))]))
+
+
+(define-syntax (with-signature stx)
+  (syntax-parse stx
+    [(_ lf-sig refinement-sig body ...)
+     #'(syntax-parameterize ([default-signature (syntax lf-sig)]
+                             [default-refinement-signature (syntax refinement-sig)])
+         body
+         ...)]))
 
 (define tac/c
   (-> >>? proof-state?))
