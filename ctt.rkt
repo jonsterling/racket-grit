@@ -12,6 +12,7 @@
 (define-signature CTT
   ; sorts
   (tm () (SORT))
+  (triv () (SORT))
   (cfg () (SORT))
 
   ; machine configurations
@@ -39,7 +40,7 @@
    (tm))
 
   ; canonical term formers
-  (ax () (tm))
+  (ax () (triv))
   (tt () (tm))
   (ff () (tm))
   (pair
@@ -65,23 +66,24 @@
   (ap
    ([e1 (arity () (tm))]
     [e2 (arity () (tm))])
-   (tm))
+   (tm)))
 
-  ; forms of judgments
+(define-signature JDG
   (eq-ty
    ([A (arity () (tm))]
     [B (arity () (tm))])
-   (SORT))
+   (triv))
   
   (is-inh
    ([A (arity () (tm))])
-   (SORT))
+   (tm))
 
   (is-eq
    ([e1 (arity () (tm))]
     [e2 (arity () (tm))]
     [A (arity () (tm))])
-   (SORT)))
+   (triv)))
+
 
 (define (ret e)
   (cut e (x) (plug x)))
@@ -128,139 +130,141 @@
     [(cut e2 (x) π)
      (subst ([x () e2]) π)]))
 
-(define-rule unit/F
-  (>> Γ (eq-ty (unit) (unit)))
-  ()
-  (ax))
+(with-signature
+ CTT JDG
+ (define-rule unit/F
+   (>> Γ (eq-ty (unit) (unit)))
+   ()
+   (ax))
 
-(define-rule bool/F
-  (>> Γ (eq-ty (bool) (bool)))
-  ()
-  (ax))
+ (define-rule bool/F
+   (>> Γ (eq-ty (bool) (bool)))
+   ()
+   (ax))
 
-(define-rule dfun/F
-  (>> Γ (eq-ty (dfun A1 (x1) B1x1) (dfun A2 (x2) B1x2)))
-  ([X (>> Γ (eq-ty A1 A2))]
-   [Y (>> (ctx-set Γ x1 (is-inh A1))
-          (eq-ty B1x1 (subst ([x2 () x1]) B1x2)))])
-  (ax))
+ (define-rule dfun/F
+   (>> Γ (eq-ty (dfun A1 (x1) B1x1) (dfun A2 (x2) B1x2)))
+   ([X (>> Γ (eq-ty A1 A2))]
+    [Y (>> (ctx-set Γ x1 (is-inh A1))
+           (eq-ty B1x1 (subst ([x2 () x1]) B1x2)))])
+   (ax))
 
-(define-rule dsum/F
-  (>> Γ (eq-ty (dsum A1 (x1) B1x1) (dsum A2 (x2) B1x2)))
-  ([X (>> Γ (eq-ty A1 A2))]
-   [Y (>> (ctx-set Γ x1 (is-inh A1))
-          (eq-ty B1x1 (subst ([x2 () x1]) B1x2)))])
-  (ax))
+ (define-rule dsum/F
+   (>> Γ (eq-ty (dsum A1 (x1) B1x1) (dsum A2 (x2) B1x2)))
+   ([X (>> Γ (eq-ty A1 A2))]
+    [Y (>> (ctx-set Γ x1 (is-inh A1))
+           (eq-ty B1x1 (subst ([x2 () x1]) B1x2)))])
+   (ax))
 
-(define-rule unit/R
-  (>> Γ (is-inh unit))
-  ()
-  (ax))
+ (define-rule unit/R
+   (>> Γ (is-inh unit))
+   ()
+   (tt))
 
-(define-rule bool/R/1
-  (>> Γ (is-inh bool))
-  ()
-  (tt))
+ (define-rule bool/R/1
+   (>> Γ (is-inh bool))
+   ()
+   (tt))
 
-(define-rule bool/R/2
-  (>> Γ (is-inh bool))
-  ()
-  (ff))
+ (define-rule bool/R/2
+   (>> Γ (is-inh bool))
+   ()
+   (ff))
 
-(define-rule (bool/L/inh z)
-  (>> (and Γ (with-hyp Γ0 z  () (is-inh (bool)) Γ1))
-      (is-inh (unapply C z)))
-  (define Γ/tt (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (tt))))
-  (define Γ/ff (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (ff))))
-  ([X (>> Γ/tt (is-inh (C (tt))))]
-   [Y (>> Γ/ff (is-inh (C (ff))))]
-   [Z (>> Γ (eq-ty (C z) (C z)))])
-  (bool-if (plug z) (plug* X Γ/tt) (plug* X Γ/ff)))
+ (define-rule (bool/L/inh z)
+   (>> (and Γ (with-hyp Γ0 z  () (is-inh (bool)) Γ1))
+       (is-inh (unapply C z)))
+   (define Γ/tt (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (tt))))
+   (define Γ/ff (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (ff))))
+   ([X (>> Γ/tt (is-inh (C (tt))))]
+    [Y (>> Γ/ff (is-inh (C (ff))))]
+    [Z (>> Γ (eq-ty (C z) (C z)))])
+   (bool-if (plug z) (plug* X Γ/tt) (plug* X Γ/ff)))
 
-(define-rule (bool/L/eq-ty z)
-  (>> (and Γ (with-hyp Γ0 z  () (is-inh (bool)) Γ1))
-      (eq-ty (unapply A1 z) (unapply A2 z)))
-  (define Γ/tt (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (tt))))
-  (define Γ/ff (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (ff))))
-  ([X (>> Γ/tt (eq-ty (A1 (tt)) (A2 (tt))))]
-   [Y (>> Γ/ff (eq-ty (A1 (ff)) (A2 (ff))))])
-  (ax))
-
-
-(define-rule (dfun/R x)
-  (>> Γ (is-inh (dfun A (y) By)))
-  (define (ΓA x) (ctx-set Γ x (is-inh A)))
-  ([X (>> (ΓA x) (is-inh (subst ([y () x]) By)))]
-   [Y (>> Γ (eq-ty A A))])
-  (lam (x) (plug* X (ΓA x))))
-
-(define-rule dsum/R
-  (>> Γ (is-inh (dsum A (x) Bx)))
-  ([X (>> Γ (is-inh A))]
-   [Y (>> Γ (is-inh (subst ([x () (plug* X Γ)]) Bx)))]
-   [Z (>> (ctx-set Γ x (is-inh A))
-          (eq-ty Bx Bx))])
-  (pair (plug* X Γ) (plug* Y Γ)))
+ (define-rule (bool/L/eq-ty z)
+   (>> (and Γ (with-hyp Γ0 z  () (is-inh (bool)) Γ1))
+       (eq-ty (unapply A1 z) (unapply A2 z)))
+   (define Γ/tt (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (tt))))
+   (define Γ/ff (splice-context Γ0 ([z (is-inh (bool))]) (Γ1 (ff))))
+   ([X (>> Γ/tt (eq-ty (A1 (tt)) (A2 (tt))))]
+    [Y (>> Γ/ff (eq-ty (A1 (ff)) (A2 (ff))))])
+   (ax))
 
 
-(define-rule ax/eq
-  (>> Γ (is-eq (ax) (ax) (unit)))
-  ()
-  (ax))
+ (define-rule (dfun/R x)
+   (>> Γ (is-inh (dfun A (y) By)))
+   (define (ΓA x) (ctx-set Γ x (is-inh A)))
+   ([X (>> (ΓA x) (is-inh (subst ([y () x]) By)))]
+    [Y (>> Γ (eq-ty A A))])
+   (lam (x) (plug* X (ΓA x))))
 
-(define-rule tt/eq
-  (>> Γ (is-eq (tt) (tt) (bool)))
-  ()
-  (ax))
+ (define-rule dsum/R
+   (>> Γ (is-inh (dsum A (x) Bx)))
+   ([X (>> Γ (is-inh A))]
+    [Y (>> Γ (is-inh (subst ([x () (plug* X Γ)]) Bx)))]
+    [Z (>> (ctx-set Γ x (is-inh A))
+           (eq-ty Bx Bx))])
+   (pair (plug* X Γ) (plug* Y Γ)))
 
-(define-rule ff/eq
-  (>> Γ (is-eq (ff) (ff) (bool)))
-  ()
-  (ax))
 
-(define-rule (lam/eq x)
-  (>> Γ (is-eq (lam (x1) e1x1) (lam (x2) e2x2) (dfun A (x3) Bx3)))
-  (define (ΓA x) (ctx-set Γ x (is-inh A)))
-  ([X (>> (ΓA x)
-          (is-eq
-           (subst ([x1 () x]) e1x1)
-           (subst ([x2 () x]) e2x2)
-           (subst ([x3 () x]) Bx3)))]
-   [Y (>> Γ (eq-ty A A))])
-  (ax))
+ (define-rule ax/eq
+   (>> Γ (is-eq (ax) (ax) (unit)))
+   ()
+   (ax))
 
-(define-rule pair/eq
-  (>> Γ (is-eq (pair e10 e20) (pair e11 e21) (dsum A (x) Bx)))
-  ([X (>> Γ (is-eq e10 e11 A))]
-   [Y (>> Γ (is-eq e20 e21 (subst ([x () e10]) Bx)))]
-   [Z (>> (ctx-set Γ x (is-inh A))
-          (eq-ty Bx Bx))])
-  (ax))
+ (define-rule tt/eq
+   (>> Γ (is-eq (tt) (tt) (bool)))
+   ()
+   (ax))
 
-(define-rule eq/direct-computation
-  (>> Γ (is-eq e1 e2 A))
-  ([X (>> Γ (is-eq (eval e1) (eval e2) (eval A)))])
-  (plug* X Γ))
+ (define-rule ff/eq
+   (>> Γ (is-eq (ff) (ff) (bool)))
+   ()
+   (ax))
 
-(define-rule eq-ty/direct-computation
-  (>> Γ (eq-ty A1 A2))
-  ([X (>> Γ (eq-ty (eval A1) (eval A2)))])
-  (plug* X Γ))
+ (define-rule (lam/eq x)
+   (>> Γ (is-eq (lam (x1) e1x1) (lam (x2) e2x2) (dfun A (x3) Bx3)))
+   (define (ΓA x) (ctx-set Γ x (is-inh A)))
+   ([X (>> (ΓA x)
+           (is-eq
+            (subst ([x1 () x]) e1x1)
+            (subst ([x2 () x]) e2x2)
+            (subst ([x3 () x]) Bx3)))]
+    [Y (>> Γ (eq-ty A A))])
+   (ax))
 
-(define-rule inh/direct-computation
-  (>> Γ (is-inh A))
-  ([X (>> Γ (is-inh (eval A)))])
-  (plug* X Γ))
+ (define-rule pair/eq
+   (>> Γ (is-eq (pair e10 e20) (pair e11 e21) (dsum A (x) Bx)))
+   ([X (>> Γ (is-eq e10 e11 A))]
+    [Y (>> Γ (is-eq e20 e21 (subst ([x () e10]) Bx)))]
+    [Z (>> (ctx-set Γ x (is-inh A))
+           (eq-ty Bx Bx))])
+   (ax))
 
-(define-rule (hyp x)
-  (>> (and Γ (with-hyp Γ0 x () tyx Γ1)) goalTy)
-  (if (not (equal? goalTy tyx))
-      (raise-refinement-error
-       (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy)
-       goalTy)
-      '())
-  ()
-  (plug x))
+ (define-rule eq/direct-computation
+   (>> Γ (is-eq e1 e2 A))
+   ([X (>> Γ (is-eq (eval e1) (eval e2) (eval A)))])
+   (plug* X Γ))
+
+ (define-rule eq-ty/direct-computation
+   (>> Γ (eq-ty A1 A2))
+   ([X (>> Γ (eq-ty (eval A1) (eval A2)))])
+   (plug* X Γ))
+
+ (define-rule inh/direct-computation
+   (>> Γ (is-inh A))
+   ([X (>> Γ (is-inh (eval A)))])
+   (plug* X Γ))
+
+ (define-rule (hyp x)
+   (>> (and Γ (with-hyp Γ0 x () tyx Γ1)) goalTy)
+   (if (not (equal? goalTy tyx))
+       (raise-refinement-error
+        (format "Hypothesis mismatch ~a has type ~a, but expected ~a" x tyx goalTy)
+        goalTy)
+       '())
+   ()
+   (plug x)))
 
 
 (module+ test

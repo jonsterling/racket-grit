@@ -20,11 +20,12 @@
 
 (provide
  SORT arity bind plug
- arity? bind? plug? sort? ctx?
+ arity? bind? plug? sort? ctx? tele?
  define-signature telescope
  make-arity arity-domain arity-codomain
  make-bind
  make-plug
+ plug-var plug-spine
  as-arity
  as-atomic-term
  as-term
@@ -39,7 +40,7 @@
  check-telescope
  check-term
  check-atomic-term
- chk-spine
+ check-spine
  infer-atomic-term
 
  ok-sort?
@@ -47,10 +48,21 @@
  ok-telescope?
  ok-spine?
  ok-term?
- ok-atomic-term?)
+ ok-atomic-term?
+
+ under-scope)
 
 (module+ test
   (require rackunit))
+
+
+(define ctx?
+  (listof (cons/c free-name? any/c)))
+
+
+(define tele?
+  (listof scope?))
+
 
 
 (struct arity (domain codomain)
@@ -217,17 +229,27 @@
        (syntax/loc stx
          (as-atomic-term (make-plug x (list e ...))))])))
 
-(define (under-scope f sc)
+(define (sort? e)
+  (or (SORT? e) (plug? e)))
+
+(define spine?
+  (listof bind?))
+
+(define/contract (under-scope f sc)
+  (-> any/c scope? scope?)
   (match-define (cons vars body) (auto-instantiate sc))
   (abstract vars (f body)))
 
-(define (make-arity tele cod)
+(define/contract (make-arity tele cod)
+  (-> tele? scope? arity?)
   (raw-make-arity (as-telescope tele) (under-scope as-sort cod)))
 
-(define (make-bind sc)
+(define/contract (make-bind sc)
+  (-> scope? bind?)
   (raw-make-bind (under-scope as-atomic-term sc)))
 
-(define (make-plug x sp)
+(define/contract (make-plug x sp)
+  (-> free-name? (listof any/c) plug?)
   (raw-make-plug x (as-spine sp)))
 
 (define (as-arity tm)
@@ -390,17 +412,6 @@
 (define (snoc xs x)
   (append xs (list x)))
 
-(define ctx?
-  (listof (cons/c free-name? any/c)))
-
-(define sort?
-  (or/c SORT? plug?))
-
-(define tele?
-  (listof scope?))
-
-(define spine?
-  (listof bind?))
 
 (define/contract (ctx->telescope ctx)
   (-> ctx? tele?)
@@ -499,7 +510,7 @@
      (match (infer-atomic-term ctx rty)
        [(SORT) '#t])]))
 
-(define/contract (chk-spine ctx tele spine)
+(define/contract (check-spine ctx tele spine)
   (->i ((ctx ctx?)
         (tele (ctx) (ok-telescope? ctx))
         (spine spine?))
@@ -519,7 +530,7 @@
        (result (-> spine? boolean?)))
   (λ (spine)
     (with-handlers ([exn:fail? (λ (v) #f)])
-      (chk-spine ctx spine tele)
+      (check-spine ctx spine tele)
       #t)))
 
 (define/contract (check-term ctx ntm ty)
@@ -551,7 +562,7 @@
     [(? plug? (and (app plug-var x) (app plug-spine spine)))
      (match (ctx-ref ctx x)
        [(? arity? (and (app arity-domain tele) (app arity-codomain cod)))
-        (chk-spine ctx tele spine)
+        (check-spine ctx tele spine)
         (instantiate cod spine)])]))
 
 (define/contract (check-atomic-term ctx rtm rty)
