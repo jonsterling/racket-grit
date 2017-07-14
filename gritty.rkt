@@ -6,7 +6,8 @@
 (provide (struct-out def-node)
          (struct-out by-node)
          (struct-out shed-node)
-         (struct-out module-node))
+         (struct-out module-node)
+         current-proof-namespace)
 
 (module+ test (require rackunit))
 
@@ -32,7 +33,7 @@
 ;;    Unlike Nuprl, multiple proofs can be chained in a module.  We
 ;;    call nodes on which refinement has not yet been attempted
 ;;    "sheds", following Epigram, but they're basically just Nuprl's
-;;    unrefiend nodes.
+;;    unrefined nodes.
 ;;
 ;;  * One mistake should not be fatal to a whole proof, merely to the
 ;;    subtree underneath it.
@@ -65,7 +66,7 @@
 (struct shed-node (text loc) #:transparent)
 
 (define current-proof-namespace
-  (make-parameter (current-namespace)))
+  (make-parameter #f))
 
 (define/contract (interpret-mod m)
   (-> module-node? (listof feedback?))

@@ -9,6 +9,8 @@
   "logical-framework.rkt"
   "refinement-engine.rkt")
 
+(provide (all-defined-out))
+
 (define-signature CTT
   ; sorts
   (tm () (SORT))
