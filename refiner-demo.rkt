@@ -7,8 +7,12 @@
 
 (module+ test (require rackunit))
 
+
+(define-namespace-anchor demo-anchor)
+
 ; A little simply-typed evidence semantics. See ctt.rkt for a more advanced example.
 (define-signature Lang
+
   (prop () (SORT))
 
   (tm () (SORT))
@@ -74,7 +78,6 @@
 
 (with-signature
  Lang Jdg
-                
  (define-rule (hyp x)
    (>> (with-hyp Γ0 x () tyx Γ1)
        goalTy)
