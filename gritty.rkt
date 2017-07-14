@@ -3,6 +3,11 @@
 (require "locally-nameless.rkt" "logical-framework.rkt" "refinement-engine.rkt")
 (require (for-syntax syntax/parse) syntax/srcloc)
 
+(provide (struct-out def-node)
+         (struct-out by-node)
+         (struct-out shed-node)
+         (struct-out module-node))
+
 (module+ test (require rackunit))
 
 ;;; Commentary:
@@ -421,8 +426,20 @@
     (define out-5 (interpret-mod test-gritty-proof-5))
 
     (check-equal? (length out-5) 1)
-    (check-mistake-feedback? (car out-5)))
+    (check-mistake-feedback? (car out-5))
 
-  (check-not-false
-   (regexp-match #rx"Solved Goal"
-                 (with-output-to-string (thunk (gritty-check "refiner-demo.rkt" "test.grit"))))))
+    (define test-gritty-proof-6
+      (module-node
+       (list (def-node "easy" "(>> '() (is-true (T)))"
+               (by-node "(hyp 22)"
+                        '()
+                        #'here3) #'here1 #'here2))))
+    (check-serialization test-gritty-proof-6)
+    (define out-6 (interpret-mod test-gritty-proof-6))
+
+    (check-equal? (length out-6) 1)
+    (check-mistake-feedback? (car out-6))
+
+    (check-not-false
+     (regexp-match #rx"Solved Goal"
+                   (with-output-to-string (thunk (gritty-check "refiner-demo.rkt" "test.grit")))))))
