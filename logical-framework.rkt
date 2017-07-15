@@ -169,7 +169,7 @@
   #:transparent
   #:methods gen:custom-write
   ((define (write-proc ty port mode)
-     (fprintf port "(TYPE)")))
+     (fprintf port "(SORT)")))
   #:property prop:bindings
   (bindings-support
    (λ (ty frees i) ty)
