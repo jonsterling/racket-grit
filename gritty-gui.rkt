@@ -3,6 +3,15 @@
 (require "logical-framework.rkt" "refinement-engine.rkt")
 (require "gritty.rkt")
 
+;;; Small helpers
+
+(define (as-label-string str)
+  (if (string? str)
+      (if (> (string-length str) 200)
+          (string-append (substring str 0 (min (string-length str) 197)) "...")
+          str)
+      (as-label-string (format "~a" str))))
+
 ;;; MVC boilerplate
 (define observable<%>
   (interface ()
@@ -32,10 +41,16 @@
 
 ;;; Model
 (define status/c
-  (or/c 'pending 'complete 'refined 'incomplete 'unreachable (list/c 'mistake exn:fail?)))
+  (or/c 'pending
+        (list/c 'complete any/c) ;; the extract
+        (list/c 'refined exact-nonnegative-integer? exact-nonnegative-integer?)
+        'incomplete
+        'unreachable
+        (list/c 'mistake exn:fail?)))
 
 (define proof-step<%>
   (interface (observable<%>)
+    [get-parent (->m (or/c (recursive-contract (is-a?/c proof-step<%>)) #f))]
     [get-tactic-text (->m string?)]
     [set-tactic-text (->m string? void?)]
     [get-goal (->m any/c)]
@@ -78,11 +93,15 @@
     (super-new)
     (init-field goal
                 subgoals
+                [parent #f]
                 [tactic-text ""])
 
     (inherit notify-observers)
 
     (define current-status 'incomplete)
+    (define internal-name (nom:fresh))
+
+    (define/public (get-parent) parent)
 
     (define/public (get-subgoals)
       subgoals)
@@ -94,6 +113,11 @@
 
     (define/public (get-status)
       current-status)
+
+    (define/public (get-extract)
+      (match current-status
+        [`(complete ,ext) ext]
+        [_ internal-name]))
 
     (define (set-status new-status)
       (set! current-status new-status)
@@ -118,31 +142,30 @@
                           (lambda (e)
                             (set-status `(mistake ,e)))])
             (define subs
-             (map cdr
               (let loop ([steps-out '()]
                          [steps-in (get-subgoals)]
                          [remaining-subgoals subgoals])
                 (match* (steps-in remaining-subgoals)
                   [(_ (list)) (reverse steps-out)]
                   [((list) (cons g gs))
-                   (define x (nom:fresh))
-                   (loop (cons (cons x
-                                     (new by%
-                                          [goal (nom:instantiate g (map car (reverse steps-out)))]
-                                          [subgoals '()]))
+                   (loop (cons (new by%
+                                    [goal (nom:instantiate g (for/list ([prev (reverse steps-out)])
+                                                               (send prev get-extract)))]
+                                    [subgoals '()]
+                                    [parent this])
                                steps-out)
                          '()
                          gs)]
                   [((cons s ss) (cons g gs))
-                   (send s set-goal (nom:instantiate g (map car (reverse steps-out))))
-                   (define x (nom:fresh))
-                   (loop (cons (cons x s) steps-out)
+                   (send s set-goal (nom:instantiate g (for/list ([prev (reverse steps-out)])
+                                                         (send prev get-extract))))
+                   (loop (cons s steps-out)
                          ss
-                         gs)]))))
+                         gs)])))
              (set-subgoals subs)
              (if (pair? subs)
-                 (set-status 'refined)
-                 (set-status 'complete)))]))
+                 (set-status `(refined 0 ,(length subs)))
+                 (set-status `(complete ,(nom:instantiate ext '())))))]))
       (notify-observers))
 
     (define/public (get-goal) goal)
@@ -184,10 +207,10 @@
       (match s
         ['pending
          (new message% [parent this] [label "⏳"])]
-        ['complete
+        [`(complete ,_)
          (new message% [parent this] [label "✔"])]
-        ['refined
-         (new message% [parent this] [label "⁇"])]
+        [`(refined ,i ,j)
+         (new message% [parent this] [label (format "~a/~a" i j)])]
         ['incomplete
          (new message% [parent this] [label "⮕"])]
         ['unreachable
@@ -225,26 +248,50 @@
 (define step-view%
   (class vertical-panel%
     (super-new [stretchable-height #f])
-    (init-field step)
+    (init step)
+    (init [indent? #t])
 
-    (define inner (new horizontal-panel% [parent this]))
+    (define the-step step)
 
-    (define children
-      (if (is-a? step has-subgoals<%>)
-          (for/list ([sub (in-list (send step get-subgoals))])
-            (define goal-box
-              (new horizontal-panel% [parent this] [stretchable-height #f]))
-            (define spacer
-              (new panel%
-                   [parent goal-box]
-                   [stretchable-width #f]
-                   [stretchable-height #f]
-                   [min-height 10]
-                   [min-width 40]))
-            (new step-view%
-                 [parent goal-box]
-                 [step sub]))
-          '()))
+    (define/public (set-step! new-step)
+      (send the-step unregister! this)
+      (set! the-step new-step)
+      (send the-step register! this)
+      (notify-updated new-step))
+
+    (define inner
+      (new horizontal-panel% [parent this]))
+    (define children-container
+      (if indent?
+          (let* ([h (new horizontal-panel% [parent this])]
+                 [s (new horizontal-panel%
+                         [parent h]
+                         [stretchable-width #f]
+                         [stretchable-height #f]
+                         [min-height 10]
+                         [min-width 40])]
+                 [v (new vertical-panel% [parent h])])
+            v)
+          (new vertical-panel% [parent this])))
+
+    (define (update-children)
+      (when (is-a? the-step has-subgoals<%>)
+        (send children-container change-children
+              (lambda (old-children)
+                (let loop ([subgoals (send the-step get-subgoals)]
+                           [widgets old-children]
+                           [to-show '()])
+                  (match* (subgoals widgets)
+                    [((list) ws) (reverse to-show)]
+                    [((cons g gs) (list))
+                     (loop gs '() (cons (new step-view%
+                                             [parent children-container]
+                                             [step g]
+                                             [indent? #t])
+                                        to-show))]
+                    [((cons g gs) (cons w ws))
+                     (send w set-step! g)
+                     (loop gs ws (cons w to-show))]))))))
 
     (define status-view
       (new status-view% [parent inner] [status 'incomplete]))
@@ -252,7 +299,7 @@
     (define goal-view
       (new message%
            [parent inner]
-           [label "Goal"]
+           [label "Uninitialized Goal"]
            [auto-resize #t]))
 
     (define contents
@@ -260,15 +307,19 @@
            [parent inner]
            [label "By"]
            [callback (lambda (me event)
-                       (send step set-tactic-text (send me get-value)))]))
+                       (send the-step set-tactic-text (send me get-value)))]))
 
-    (define/public (notify-updated x)
+    (define (init-view x)
       (send status-view set-status (send x get-status))
-      (send goal-view set-label (format "~a" (send x get-goal)))
+      (send goal-view set-label (as-label-string (format "~a" (send x get-goal))))
       (send contents set-value (send x get-tactic-text)))
 
-    (send step register! this)
-    (notify-updated step)))
+    (define/public (notify-updated x)
+      (init-view x)
+      (update-children))
+
+    (send the-step register! this)
+    (init-view the-step)))
 
 (define (prover-namespace logic-module)
   (define ns (make-base-namespace))
@@ -299,15 +350,8 @@
       ;; Model
       (define st (new by%
                       [goal goal-val]
-                      [tactic-text "whoa"]
-                      [subgoals (list (new by%
-                                           [goal #f]
-                                           [tactic-text "hi"]
-                                           [subgoals '()])
-                                      (new by%
-                                           [goal 'foo]
-                                           [tactic-text "again"]
-                                           [subgoals '()]))]))
+                      [tactic-text ""]
+                      [subgoals '()]))
 
       (define p (new proof% [name "Test"] [goal goal-val] [step st]))
 
