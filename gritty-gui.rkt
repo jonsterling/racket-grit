@@ -53,8 +53,9 @@
     [get-parent (->m (or/c (recursive-contract (is-a?/c proof-step<%>)) #f))]
     [get-tactic-text (->m string?)]
     [set-tactic-text (->m string? void?)]
-    [get-goal (->m any/c)]
-    [set-goal (->m any/c void?)]
+    [set-depends-on (->m (listof (recursive-contract (is-a?/c proof-step<%>))) void?)]
+    [get-goal (->m >>?)]
+    [set-goal (->m nom:scope? void?)]
     [get-status (->m status/c)]))
 
 (define proof<%>
@@ -92,24 +93,36 @@
   (class* (observable-mixin object%) (has-subgoals<%> proof-step<%>)
     (super-new)
     (init-field goal
+                depends-on
                 subgoals
                 [parent #f]
                 [tactic-text ""])
 
     (inherit notify-observers)
 
+    ;; TODO: real contract
+    (unless (nom:scope? goal)
+      (error 'not-scope))
+
     (define current-status 'incomplete)
     (define internal-name (nom:fresh))
 
-    (define/public (get-parent) parent)
+    (define/public (get-parent)
+      parent)
 
     (define/public (get-subgoals)
       subgoals)
+
     (define/public (set-subgoals goals)
       (set! subgoals goals)
       (send this notify-observers))
+
     (define/public (get-tactic-text)
       tactic-text)
+
+    (define/public (set-depends-on steps)
+      (set! depends-on steps)
+      (send this notify-observers))
 
     (define/public (get-status)
       current-status)
@@ -149,16 +162,15 @@
                   [(_ (list)) (reverse steps-out)]
                   [((list) (cons g gs))
                    (loop (cons (new by%
-                                    [goal (nom:instantiate g (for/list ([prev (reverse steps-out)])
-                                                               (send prev get-extract)))]
+                                    [goal g]
+                                    [depends-on (reverse steps-out)]
                                     [subgoals '()]
                                     [parent this])
                                steps-out)
                          '()
                          gs)]
                   [((cons s ss) (cons g gs))
-                   (send s set-goal (nom:instantiate g (for/list ([prev (reverse steps-out)])
-                                                         (send prev get-extract))))
+                   (send s set-goal g)
                    (loop (cons s steps-out)
                          ss
                          gs)])))
@@ -168,7 +180,10 @@
                  (set-status `(complete ,(nom:instantiate ext '())))))]))
       (notify-observers))
 
-    (define/public (get-goal) goal)
+    (define/public (get-goal)
+      (nom:instantiate goal (for/list ([prev (in-list depends-on)])
+                              (send prev get-extract))))
+
     (define/public (set-goal new-goal)
       (set! goal new-goal)
       (notify-observers))))
@@ -349,7 +364,8 @@
     (parameterize ([current-eventspace es])
       ;; Model
       (define st (new by%
-                      [goal goal-val]
+                      [goal (nom:in-scope () goal-val)]
+                      [depends-on '()]
                       [tactic-text ""]
                       [subgoals '()]))
 
