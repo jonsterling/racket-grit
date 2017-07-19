@@ -326,3 +326,5 @@
 
 (define (test-it)
   (prover-frame (prover-namespace "ctt.rkt") "(>> '() (is-inh (dsum (bool) (x) (bool-if x (unit) (void)))))"))
+
+(module+ main (test-it))
