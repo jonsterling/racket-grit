@@ -12,7 +12,6 @@
 \newcommand\TinyLF{TinyLF}
 
 \renewcommand\vec[1]{\overline{#1}}
-\newcommand\Ul[1]{\underline{#1}}
 
 
 %%% PLEASE FEEL FREE TO CHANGE NOTATION!
@@ -193,11 +192,13 @@ inductive-recursive definition.
   \SpSnoc{\HSubst{\psi}{\Psi}{\phi}}{\HSubst{\psi}{\Psi}{M}}
 \end{align*}
 
-\section{Refinements}
+\section{Refinement Logic}
 
 \newcommand\Spec[2]{{#1}\triangleright{#2}}
 \newcommand\SigNil{\cdot}
 \newcommand\SigSnoc[3]{#1,#2:#3}
+
+\newcommand\Seq[2]{#1\gg{#2}}
 
 \newcommand\RfSig[2]{{#1}\vdash{#2}\;\textit{sig}}
 \newcommand\RfSpec[2]{{#1}\vdash{#2}\;\textit{spec}}
@@ -206,7 +207,7 @@ inductive-recursive definition.
 \newcommand\RfTl[4]{#1\mathrel{\vdash_{#2}}{#3}\sqsubset{#4}}
 
 On top of the syntactic framework is layered a notion of
-\emph{refinement}, organized around refinement signatures
+\emph{refinement judgment}, organized around refinement signatures
 $\vec{\vartheta_i:\Spec{\Psi_i}{\tau_i}}$; in such a signature,
 $\vartheta_i$ is the name of an atomic form of judgment which takes
 inputs of arities $\Psi_i$ and has an output (synthesis) of sort
@@ -224,20 +225,20 @@ $\tau_i$.
     &::=
     &\SigNil\mid\SigSnoc{\Sigma}{\vartheta}{\mathfrak{s}}
     \\
-    \text{sorts}
-    &\Ul{\tau}
+    \text{judgments}
+    &\mathcal{J}
     &::=
     &\Ap{\vartheta}{\psi}
     \\
-    \text{arities}
-    &\Ul{\alpha}
+    \text{sequents}
+    &\mathcal{S}
     &::=
-    &\Ar{\Ul{\Psi}}{\Ul{\tau}}
+    &\Seq{\mathcal{H}}{\mathcal{J}}
     \\
     \text{telescopes}
-    &\Ul{\Psi}
+    &\mathcal{H}
     &::=
-    &\TlNil\mid\TlSnoc{\Ul{\Psi}}{x}{\Ul{\alpha}}
+    &\TlNil\mid\TlSnoc{\mathcal{H}}{x}{\mathcal{S}}
   \end{array}
 \]
 
@@ -268,7 +269,7 @@ explain it on paper.
     \RfSig{\Psi}{\SigSnoc{\Sigma}{\vartheta}{\mathfrak{s}}}
   }
   \and
-  \inferrule[sort]{
+  \inferrule[atomic judgment]{
     \Sigma(\vartheta) = \Spec{\Phi}{\tau}
     \\
     \WfSp{\Psi}{\phi}{\Phi}
@@ -278,12 +279,12 @@ explain it on paper.
     }
   }
   \and
-  \inferrule[arity]{
-    \RfTl{\Psi}{\Sigma}{\Ul{\Phi}}{\Phi}
+  \inferrule[sequent]{
+    \RfTl{\Psi}{\Sigma}{\mathcal{H}}{\Phi}
     \\
-    \RfTl{\Psi,\Phi}{\Sigma}{\Ul{\tau}}{\tau}
+    \RfTl{\Psi,\Phi}{\Sigma}{\mathcal{J}}{\tau}
   }{
-    \RfAr{\Psi}{\Sigma}{\Ar{\Ul{\Phi}}{\Ul{\tau}}}{\Ar{\Phi}{\tau}}
+    \RfAr{\Psi}{\Sigma}{\Seq{\mathcal{H}}{\mathcal{J}}}{\Ar{\Phi}{\tau}}
   }
   \and
   \inferrule[tele/nil]{
@@ -292,17 +293,64 @@ explain it on paper.
   }
   \and
   \inferrule[tele/snoc]{
-    \RfTl{\Psi}{\Sigma}{\Ul{\Phi}}{\Phi}
+    \RfTl{\Psi}{\Sigma}{\mathcal{H}}{\Phi}
     \\
-    \RfAr{\Psi,\Phi}{\Sigma}{\Ul{\alpha}}{\alpha}
+    \RfAr{\Psi,\Phi}{\Sigma}{\mathcal{S}}{\alpha}
   }{
     \RfTl{\Psi}{\Sigma}{
-      (\TlSnoc{\Ul{\Phi}}{x}{\Ul{\alpha}})
+      (\TlSnoc{\mathcal{H}}{x}{\mathcal{S}})
     }{
       (\TlSnoc{\Phi}{x}{\alpha})
     }
   }
 \end{mathpar}
+
+\subsection{Proof States and Refinement Rules}
+\newcommand\State[3]{#1\blacktriangleright{#2}:{#3}}
+% \newcommand\Rule[3]{#1\Longrightarrow{#2}\blacktriangleright{#3}}
+\newcommand\WfState[3]{#1\mathrel{\vdash_{#2}}#3\;\textit{state}}
+
+We extend the grammar with \emph{proof states} below.
+\[
+  \begin{array}{llll}
+    \text{states}
+    &\mathcal{C}
+    &::=
+    &\State{\mathcal{H}}{M}{\alpha}
+    % \\
+    % \text{rule}
+    % &\mathcal{R}
+    % &::=
+    % &\Rule{\mathcal{S}}{\mathcal{H}}{M}
+  \end{array}
+\]
+
+The data of a proof state $\State{\mathcal{H}}{M}{\alpha}$ is a
+refinement telescope of \emph{goals} $\mathcal{H}$ together with a
+piece of partial evidence $M$ of arity $\alpha$. Note that $\alpha$ is
+an ordinary arity, rather than a sequent: in the proof refinement
+process, it is never necessary to know the ``main goal''.
+
+The wellformedness conditions for proof states are simple:
+\begin{mathpar}
+  \inferrule{
+    \RfAr{\Psi}{\Sigma}{\mathcal{H}}{\Phi}
+    \\
+    \WfAr{\Psi,\Phi}{\alpha}
+    \\
+    \WfBnd{\Psi,\Phi}{M}{\alpha}
+  }{
+    \WfState{\Psi}{\Sigma}{
+      (\State{\mathcal{H}}{M}{\alpha})
+    }
+  }
+\end{mathpar}
+
+% TODO: discuss syntax of refinement rules; to do this, we need a
+% well-defined notion of pattern. This could be accomplished by adding
+% an extra context of \emph{linear} variables to the judgments for
+% refinements.
+
 
 \bibliographystyle{plain}
 \bibliography{refs}
