@@ -1,0 +1,310 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathpartir}
+\usepackage{mathtools}
+
+\usepackage[T1]{fontenc}
+\usepackage{libertine}
+\usepackage{url}
+\usepackage[scaled=0.83]{beramono}
+\newcommand\Grit{\texttt{grit}}
+\newcommand\TinyLF{TinyLF}
+
+\renewcommand\vec[1]{\overline{#1}}
+\newcommand\Ul[1]{\underline{#1}}
+
+
+%%% PLEASE FEEL FREE TO CHANGE NOTATION!
+\newcommand\SORT{\blacksquare}
+\newcommand\Ar[2]{[#1]#2}
+\newcommand\TlNil{\cdot}
+\newcommand\TlSnoc[3]{#1,#2:#3}
+\newcommand\SpNil{\cdot}
+\newcommand\SpSnoc[2]{#1,#2}
+\newcommand\Ap[2]{#1[#2]}
+\newcommand\Abs[2]{[#1]#2}
+
+\newcommand\WfSrt[2]{{#1}\vdash{#2}\;\textit{sort}}
+\newcommand\WfAr[2]{{#1}\vdash{#2}\;\textit{arity}}
+\newcommand\WfTl[2]{{#1}\vdash{#2}\;\textit{tele}}
+\newcommand\WfTm[3]{{#1}\vdash{#2}\Rightarrow{#3}}
+\newcommand\WfSp[3]{{#1}\vdash{#2}\Leftarrow{#3}}
+\newcommand\WfBnd[3]{{#1}\vdash{#2}\Leftarrow{#3}}
+\newcommand\HSubst[3]{[#1/#2]#3}
+
+\title{\Grit: the kernel around which a PRL forms}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Syntactic Framework}
+
+\Grit{} is based on dependently-sorted higher-order abstract syntax,
+inspired by Reed's \TinyLF{}~\cite{reed:2007} and Fiore's
+dependently-sorted syntax~\cite{fiore:2008}. The grammar is given as
+follows:
+
+\[
+  \begin{array}{llll}
+    \text{sorts}
+    &\tau
+    &::=
+    &\SORT\mid R
+    \\
+    \text{arities}
+    &\alpha
+    &::=
+    &\Ar{\Psi}{\tau}
+    \\
+    \text{telescopes}
+    &\Psi
+    &::=
+    &\TlNil\mid\TlSnoc{\Psi}{x}{\alpha}
+    \\
+    \text{terms}
+    &R
+    &::=
+    &\Ap{x}{\psi}
+    \\
+    \text{binders}
+    &M
+    &::=
+    &\Abs{\vec{x}}{R}
+    \\
+    \text{spines}
+    &\psi
+    &::=
+    &\cdot\mid\SpSnoc{\psi}{M}
+  \end{array}
+\]
+
+The wellformedness conditions for each of these forms of syntax are
+given together with hereditary substitutions by a simultaneous
+inductive-recursive definition.
+\begin{mathpar}
+  \inferrule{
+  }{
+    \WfSrt{\Psi}{\SORT}
+  }
+  \and
+  \inferrule{
+    \Psi(x) = \Ar{\Phi}{\SORT}
+    \\
+    \WfSp{\Psi}{\phi}{\Phi}
+  }{
+    \WfSrt{\Psi}{\Ap{x}{\phi}}
+  }
+  \and
+  \inferrule{
+    \WfTl{\Psi}{\Phi}
+    \\
+    \WfSrt{\Psi,\Phi}{\tau}
+  }{
+    \WfAr{\Psi}{\Ar{\Phi}{\tau}}
+  }
+  \and
+  \inferrule{
+  }{
+    \WfTl{\Psi}{\TlNil}
+  }
+  \and
+  \inferrule{
+    \WfTl{\Psi}{\Phi}
+    \\
+    \WfAr{\Psi,\Phi}{\alpha}
+  }{
+    \WfTl{\Psi}{\TlSnoc{\Phi}{x}{\alpha}}
+  }
+  \and
+  \inferrule{
+    \Psi(x) = \Ar{\Phi}{\tau}
+    \\
+    \WfSp{\Psi}{\phi}{\Phi}
+  }{
+    \WfTm{\Psi}{\Ap{x}{\phi}}{\HSubst{\psi}{\Phi}{\tau}}
+  }
+  \and
+  \inferrule{
+    \WfTm{\Psi,\vec{x_i:\alpha_i}}{R}{\tau}
+  }{
+    \WfBnd{\Psi}{\Abs{\vec{x_i}}{R}}{\Ar{\vec{x_i:\alpha_i}}{\tau}}
+  }
+  \and
+  \inferrule{
+  }{
+    \WfSp{\Psi}{\SpNil}{\TlNil}
+  }
+  \and
+  \inferrule{
+    \WfSp{\Psi}{\phi}{\Phi}
+    \\
+    \WfBnd{\Psi}{M}{\HSubst{\phi}{\Phi}{\alpha}}
+  }{
+    \WfSp{\Psi}{\SpSnoc{\phi}{M}}{\TlSnoc{\Phi}{x}{\alpha}}
+  }
+\end{mathpar}
+
+\begin{align*}
+  \HSubst{\psi}{\Psi}{\SORT}
+  &=
+  \SORT
+  \\
+  \HSubst{\psi}{\Psi}{(\Ap{x}{\phi})}
+  &=
+  \begin{cases*}
+    \HSubst{
+      \HSubst{\psi}{\Psi}{\phi}
+    }{\vec{y_i:\alpha_i}}{R} 
+    &if $\Psi(x)=\Ar{\vec{y_i:\alpha_i}}{\tau}, \psi(x)=\Abs{\vec{y_i}}{R}$
+    \\
+    \Ap{x}{
+      \HSubst{\psi}{\Psi}{\phi}
+    }
+    &otherwise
+  \end{cases*}
+  \\
+  \HSubst{\psi}{\Psi}{(\TlNil)}
+  &=
+  \TlNil
+  \\
+  \HSubst{\psi}{\Psi}{(\TlSnoc{\vec{x_i:\alpha_i}}{y}{\beta})}
+  &=
+  \TlSnoc{
+    \HSubst{\psi}{\Psi}{(\vec{x_i:\alpha_i})}
+  }{x}{
+    \HSubst{\psi}{\Psi}{\beta}
+  }
+  \\
+  \HSubst{\psi}{\Psi}{\Abs{\vec{x_i}}{R}}
+  &=
+  \Abs{\vec{x_i}}{
+    (\HSubst{\psi}{\Psi}{R})
+  }
+  \\
+  \HSubst{\psi}{\Psi}{(\SpNil)}
+  &=
+  \SpNil
+  \\
+  \HSubst{\psi}{\Psi}{(\SpSnoc{\phi}{M})}
+  &=
+  \SpSnoc{\HSubst{\psi}{\Psi}{\phi}}{\HSubst{\psi}{\Psi}{M}}
+\end{align*}
+
+\section{Refinements}
+
+\newcommand\Spec[2]{{#1}\triangleright{#2}}
+\newcommand\SigNil{\cdot}
+\newcommand\SigSnoc[3]{#1,#2:#3}
+
+\newcommand\RfSig[2]{{#1}\vdash{#2}\;\textit{sig}}
+\newcommand\RfSpec[2]{{#1}\vdash{#2}\;\textit{spec}}
+\newcommand\RfSrt[4]{#1\mathrel{\vdash_{#2}}{#3}\sqsubset{#4}}
+\newcommand\RfAr[4]{#1\mathrel{\vdash_{#2}}{#3}\sqsubset{#4}}
+\newcommand\RfTl[4]{#1\mathrel{\vdash_{#2}}{#3}\sqsubset{#4}}
+
+On top of the syntactic framework is layered a notion of
+\emph{refinement}, organized around refinement signatures
+$\vec{\vartheta_i:\Spec{\Psi_i}{\tau_i}}$; in such a signature,
+$\vartheta_i$ is the name of an atomic form of judgment which takes
+inputs of arities $\Psi_i$ and has an output (synthesis) of sort
+$\tau_i$.
+
+\[
+  \begin{array}{llll}
+    \text{specifications}
+    &\mathfrak{s}
+    &::=
+    &\Spec{\Psi}{\tau}
+    \\
+    \text{signatures}
+    &\Sigma
+    &::=
+    &\SigNil\mid\SigSnoc{\Sigma}{\vartheta}{\mathfrak{s}}
+    \\
+    \text{sorts}
+    &\Ul{\tau}
+    &::=
+    &\Ap{\vartheta}{\psi}
+    \\
+    \text{arities}
+    &\Ul{\alpha}
+    &::=
+    &\Ar{\Ul{\Psi}}{\Ul{\tau}}
+    \\
+    \text{telescopes}
+    &\Ul{\Psi}
+    &::=
+    &\TlNil\mid\TlSnoc{\Ul{\Psi}}{x}{\Ul{\alpha}}
+  \end{array}
+\]
+
+Below, we specify the wellformedness of refinement signatures and
+refinements simultaneously with their erasure. This may not be how it
+ends up being \emph{implemented}, but it is the most natural way to
+explain it on paper.
+
+\begin{mathpar}
+  \inferrule[specification]{
+    \WfTl{\Psi}{\Phi}
+    \\
+    \WfSrt{\Psi,\Phi}{\tau}
+  }{
+    \RfSpec{\Psi}{\Spec{\Phi}{\tau}}
+  }
+  \and
+  \inferrule[sig/nil]{
+  }{
+    \RfSig{\Psi}{\SigNil}
+  }
+  \and
+  \inferrule[sig/snoc]{
+    \RfSig{\Psi}{\Sigma}
+    \\
+    \RfSpec{\Psi}{\mathfrak{s}}
+  }{
+    \RfSig{\Psi}{\SigSnoc{\Sigma}{\vartheta}{\mathfrak{s}}}
+  }
+  \and
+  \inferrule[sort]{
+    \Sigma(\vartheta) = \Spec{\Phi}{\tau}
+    \\
+    \WfSp{\Psi}{\phi}{\Phi}
+  }{
+    \RfSrt{\Psi}{\Sigma}{\Ap{\vartheta}{\phi}}{
+      \HSubst{\phi}{\Phi}{\tau}
+    }
+  }
+  \and
+  \inferrule[arity]{
+    \RfTl{\Psi}{\Sigma}{\Ul{\Phi}}{\Phi}
+    \\
+    \RfTl{\Psi,\Phi}{\Sigma}{\Ul{\tau}}{\tau}
+  }{
+    \RfAr{\Psi}{\Sigma}{\Ar{\Ul{\Phi}}{\Ul{\tau}}}{\Ar{\Phi}{\tau}}
+  }
+  \and
+  \inferrule[tele/nil]{
+  }{
+    \RfTl{\Psi}{\Sigma}{\TlNil}{\TlNil}
+  }
+  \and
+  \inferrule[tele/snoc]{
+    \RfTl{\Psi}{\Sigma}{\Ul{\Phi}}{\Phi}
+    \\
+    \RfAr{\Psi,\Phi}{\Sigma}{\Ul{\alpha}}{\alpha}
+  }{
+    \RfTl{\Psi}{\Sigma}{
+      (\TlSnoc{\Ul{\Phi}}{x}{\Ul{\alpha}})
+    }{
+      (\TlSnoc{\Phi}{x}{\alpha})
+    }
+  }
+\end{mathpar}
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}
