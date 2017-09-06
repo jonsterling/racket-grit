@@ -13,6 +13,8 @@
           [sequent? (-> any/c boolean?)]
           [sequent-telescope? (-> any/c boolean?)]
           [sequent-tele-nil (-> sequent-telescope?)]
+          [make-sequent-tele-snoc (-> typing-context? sequent-telescope? symbol? sequent?
+                                      sequent-telescope?)]
           [≫ (-> sequent-telescope? judgment? sequent?)]
           [check-sequent (-> typing-context? sequent? ast:arity?)]))
 
@@ -112,7 +114,6 @@
   (or (sequent-tele-snoc? x)
       (sequent-tele-nil? x)))
 
-
 (define (check-sequent Ψ 𝒮)
   (match-define (≫ ℋ 𝒥) 𝒮)
   (define Φ (erase-sequent-tele ℋ))
@@ -130,5 +131,31 @@
        false-true))
   (check-equal? (check-sequent L perhaps)
                 (term L (arity ([nuh-uh (P)])
-                               (P))))
-)
+                               (P)))))
+
+(struct proof-state (subgoals extract arity) #:transparent)
+
+(define (check-proof-state Ψ 𝒞)
+  (match-define (proof-state ℋ M α) 𝒞)
+  (define Φ (erase-sequent-tele ℋ))
+  (telescope-ok Ψ Φ)
+  (define ΨΦ (extend-context Ψ Φ))
+  (well-formed-classifier ΨΦ α)
+  (check-type ΨΦ M α))
+
+(module+ test
+  (define proving-conjunction
+    (proof-state (make-sequent-tele-snoc
+                  L
+                  (make-sequent-tele-snoc L
+                                          (sequent-tele-nil)
+                                          'p1
+                                          (≫ (sequent-tele-nil)
+                                             (judgment is-true
+                                                       (list (ast:as-bind (term L (⊤)))))))
+                  'p2
+                  (≫ (sequent-tele-nil)
+                     (judgment is-true
+                               (list (ast:as-bind (term L (⊤)))))))
+                 (ast:bind '(p1 p2) (lambda (p1 p2) (term L (both p1 p2))))
+                 (term L (arity ([p1 (P)] [p2 (P)]) (P))))))
