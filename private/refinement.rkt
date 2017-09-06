@@ -13,7 +13,8 @@
           [sequent? (-> any/c boolean?)]
           [sequent-telescope? (-> any/c boolean?)]
           [sequent-tele-nil (-> sequent-telescope?)]
-          [≫ (-> sequent-telescope? judgment? sequent?)]))
+          [≫ (-> sequent-telescope? judgment? sequent?)]
+          [check-sequent (-> typing-context? sequent? ast:arity?)]))
 
 (module+ test (require rackunit))
 
@@ -97,23 +98,37 @@
 (struct sequent-tele-nil ())
 (struct sequent-tele-snoc (prev refines sequent))
 
+(define (make-sequent-tele-snoc Ψ prev x 𝒮)
+  (define prev′ (erase-sequent-tele prev))
+  (define Φ (ast:snoc-tele prev′ x (check-sequent Ψ 𝒮)))
+  (sequent-tele-snoc prev Φ 𝒮))
+
+(define (erase-sequent-tele ℋ)
+  (match ℋ
+    [(sequent-tele-nil) (ast:empty-tele)]
+    [(sequent-tele-snoc _ Φ _) Φ]))
+
 (define (sequent-telescope? x)
   (or (sequent-tele-snoc? x)
       (sequent-tele-nil? x)))
 
-(define (check-sequent-telescope Ψ ℋ)
-  (match ℋ
-    [(sequent-tele-nil) (ast:empty-tele)]
-    [(sequent-tele-snoc ℋ′ Φ 𝒮)
-     (error 'todo)]))
 
 (define (check-sequent Ψ 𝒮)
   (match-define (≫ ℋ 𝒥) 𝒮)
-  (define Φ (check-sequent-telescope Ψ ℋ))
+  (define Φ (erase-sequent-tele ℋ))
   (define τ (check-judgment (extend-context Ψ Φ) 𝒥))
   (ast:arity Φ (lambda _ τ)))
 
 (module+ test
   (define indeed (≫ (sequent-tele-nil) and-true))
   (check-equal? (check-sequent L indeed) (term L (arity () (P))))
+  (define perhaps
+    (≫ (make-sequent-tele-snoc L
+                               (sequent-tele-nil)
+                               'nope
+                               (≫ (sequent-tele-nil) false-true))
+       false-true))
+  (check-equal? (check-sequent L perhaps)
+                (term L (arity ([nuh-uh (P)])
+                               (P))))
 )
