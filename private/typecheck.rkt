@@ -34,10 +34,10 @@
   (let outer ([teles (typing-context-telescopes Γ)])
     (if (pair? teles)
         (let inner ([Ψ (car teles)])
-          (if (cons-tele? Ψ)
+          (if (snoc-tele? Ψ)
               (if (eq? (var-binder x) Ψ)
-                  (cons-tele-type Ψ)
-                  (inner (cons-tele-telescope Ψ)))
+                  (snoc-tele-type Ψ)
+                  (inner (snoc-tele-prev Ψ)))
               (outer (cdr teles))))
         (raise-bad-var x))))
 
@@ -73,9 +73,10 @@
 (define (telescope-ok Γ Ψ)
   (cond
     [(empty-tele? Ψ) (void)]
-    [(cons-tele? Ψ)
-     (begin (telescope-ok Γ (cons-tele-telescope Ψ))
-            (well-formed-classifier (extend-context Γ Ψ) (cons-tele-type Ψ)))]))
+    [(snoc-tele? Ψ)
+     (begin (telescope-ok Γ (snoc-tele-prev Ψ))
+            (well-formed-classifier (extend-context Γ (snoc-tele-prev Ψ))
+                                    (snoc-tele-type Ψ)))]))
 
 (define (well-formed-context Γ)
   (let loop ([Ψs (typing-context-telescopes Γ)])
@@ -96,20 +97,25 @@
 
 ;; The judgment Γ ⊢ σ ⇐ Ψ. (void) on success, exn on failure.
 (define (check-spine Γ σ Ψ)
-  (match σ
-    ['()
-     (if (empty-tele? Ψ)
-         (void)
-         (raise-spine-underflow Ψ))]
-    [(cons M σ-rest)
-     (if (cons-tele? Ψ)
-         (let ([x (var Ψ 0)]
-               [V (cons-tele-type Ψ)])
-           (check-type Γ M (subst V σ-rest Ψ)))
-         (raise-spine-overflow σ))]))
+  (displayln `(check-spine ,Γ ,σ ,Ψ))
+  (define (check-spine-inner ς Φ)
+    (displayln `(check-spine-inner ,ς ,Φ))
+   (match ς
+     ['()
+      (if (empty-tele? Φ)
+          (void)
+          (raise-spine-underflow Φ))]
+     [(cons M ς-rest)
+      (if (snoc-tele? Φ)
+          (let ([V (snoc-tele-type Φ)])
+            (check-spine-inner ς-rest (snoc-tele-prev Φ))
+            (check-type Γ M (subst V ς-rest (snoc-tele-prev Φ))))
+          (raise-spine-overflow ς))]))
+  (check-spine-inner (reverse σ) Ψ))
 
 ;; The judgment Γ ⊢ N ⇐ V
 (define (check-type Γ N V)
+  (displayln `(check-type ,Γ ,N ,V))
   (if (bind? N)
       (if (arity? V)
           (let* ([Ψ (arity-domain V)]
@@ -126,6 +132,7 @@
 
 ;; The judgment Γ ⊢ R ⇒ v (where v is output-moded).
 (define (synth Γ R)
+  (displayln `(synt ,Γ ,R))
   (define-values (Ψ v) (is-arity (lookup (plug-var R) Γ)))
   (check-spine Γ (plug-spine R) Ψ)
   (define out (subst v (plug-spine R) Ψ))

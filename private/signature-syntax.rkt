@@ -3,7 +3,6 @@
 (require (for-syntax racket/base syntax/parse racket/match) racket/match racket/splicing)
 
 (require (prefix-in ast: "ast.rkt")
-         (prefix-in syn: "syntax.rkt")
          "typecheck.rkt")
 
 (provide define-sig term arity SORT)
@@ -12,8 +11,16 @@
 (module+ test
   (require rackunit))
 
-(begin-for-syntax
+(define (loose-equal? e1 e2)
+  (if (and (ast:lf? e1) (ast:lf? e2))
+      (let ([x (ast:as-arity e1)]
+            [y (ast:as-arity e2)])
+        (equal? x y))
+      (equal? e1 e2)))
 
+(match-equality-test loose-equal?)
+
+(begin-for-syntax
  (struct sig (arities runtime)
    #:property prop:rename-transformer
    (lambda (s)
@@ -36,25 +43,6 @@
      [#f (raise-syntax-error op "Unknown op")]
      [(cons _ arity) arity]))
  )
-
-#;
-(define rt-sig
-  (ast:cons-tele 'Expr (syn:arity () syn:SORT)
-                 (lambda (Expr)
-                   (ast:cons-tele
-                    'ap
-                    (syn:arity ([rator Expr] [rand Expr]) Expr)
-                    (lambda (ap)
-                      (ast:cons-tele
-                       'lam
-                       (syn:arity ([body (syn:arity ([x Expr]) Expr)]) Expr)
-                       (lambda (lam)
-                         (ast:empty-tele))))))))
-#;
-(define-syntax SIG (sig '((Expr)
-                          (ap 0 0)
-                          (lam 1))
-                        #'rt-sig))
 
 
 
@@ -121,7 +109,7 @@
                           (term Σ-old c0.result))))
            (well-formed-classifier Σ-old-rt ty)
            (define Ψ
-             (ast:cons-tele 'c0.name ty (lambda (_) (ast:empty-tele))))
+             (ast:snoc-tele (ast:empty-tele) 'c0.name ty))
            (define Σ-new-rt (extend-context Σ-old-rt Ψ))
            (splicing-let-syntax ([Σ-help (sig 'Σ-new-ar #'Σ-new-rt)])
              (define-extended-sig Σ Σ-help c ...))))]))
@@ -131,20 +119,24 @@
   (λ (stx)
     (syntax-parse stx
       [(_) (syntax/loc stx (? ast:empty-tele?))]
-      [(_ (x0:id ty0) (x:id ty) ...)
+      [(_ (x:id ty) ... (x0:id ty0))
        (syntax/loc stx
-         (? ast:cons-tele?
-            (and (app open-cons-tele
+         (? ast:snoc-tele?
+            (and (app open-snoc-tele
+                      (telescope (x:id ty) ...)
                       x0
-                      ty0
-                      (telescope (x:id ty) ...)))))]))
+                      ty0))))]))
   (λ (stx)
     (syntax-parse stx
       [(_) (syntax/loc stx
              (ast:empty-tele))]
-      [(_ (x0:id ty0) (x:id ty) ...)
+      [(_  (x:id ty) ... (x0:id ty0))
        (syntax/loc stx
-         (ast:cons-tele 'x0 (ast:as-arity ty0) (λ (x0) (telescope (x ty) ...))))])))
+         (let ([prev (telescope (x ty) ...)])
+           (match-let ([(list x ...)
+                        (map (λ (Φ) (ast:var Φ 0))
+                             (ast:telescope->list prev))])
+            (ast:snoc-tele prev 'x0 (ast:as-arity ty0)))))])))
 
 (define (var-for-name x ctx)
   (let loop ([Ψs (context->list ctx)])
@@ -157,10 +149,10 @@
 
 (define (var-for-name/tele x tele)
   (cond [(ast:empty-tele? tele) #f]
-        [(ast:cons-tele? tele)
-         (if (eqv? x (ast:cons-tele-name tele))
+        [(ast:snoc-tele? tele)
+         (if (eqv? x (ast:snoc-tele-name tele))
              (ast:var tele 0)
-             (var-for-name/tele x (ast:cons-tele-telescope tele)))]))
+             (var-for-name/tele x (ast:snoc-tele-prev tele)))]))
 
 (define (open-bind b)
   (define vars (for/list ([x (ast:bind-vars b)]
@@ -338,8 +330,9 @@
     (match id
       [(term Foo (lam (x) (tt))) 1]
       [(term Foo (lam (x) x)) x]
-      [(term Foo y) 3])))
-  
+      [(term Foo (lam (x) y)) `(yep ,y)]
+      [(term Foo y) y])))
+
   (define (run e [ρ '()])
     (match e
       [(term Foo (tt)) (term Foo (tt))]
@@ -359,4 +352,15 @@
   (check-true
    (match (run (term Foo (ap (lam (y) y) (tt))))
      [(term Foo (tt)) #t]
-     [_ #f])))
+     [_ #f]))
+
+  (define foo (telescope (A (ast:SORT)) (B A) (C A) (D A) (E A) (F A)))
+
+  (define-sig Pairs
+    (B1 () SORT)
+    (B2 () SORT)
+    (b1 () (B1))
+    (b2 () (B2))
+    (Pair ((X SORT) (Y SORT)) SORT)
+    (cons ([Q SORT] [Z SORT] [x (Q)] [y (Z)])
+          (Pair Q Z))))

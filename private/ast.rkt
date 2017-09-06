@@ -36,12 +36,12 @@
   [empty-tele (-> telescope?)]
   [empty-tele? (-> any/c boolean?)]
 
-  [cons-tele (-> symbol? arity? (-> var? telescope?)
+  [snoc-tele (-> telescope? symbol? arity?
                  telescope?)]
-  [cons-tele? (-> any/c boolean?)]
-  [cons-tele-name (-> cons-tele? symbol?)]
-  [cons-tele-type (-> cons-tele? arity?)]
-  [cons-tele-telescope (-> cons-tele? telescope?)]
+  [snoc-tele? (-> any/c boolean?)]
+  [snoc-tele-name (-> snoc-tele? symbol?)]
+  [snoc-tele-type (-> snoc-tele? arity?)]
+  [snoc-tele-prev (-> snoc-tele? telescope?)]
 
   [telescope? (-> any/c boolean?)]
   [telescope->list (-> telescope? (listof telescope?))]
@@ -74,23 +74,23 @@
   [as-bind (-> (or/c var? plug? bind?) bind?)]
 
   [subst (-> lf? (listof lf?) telescope?
-               lf?)]
+             lf?)]
   [rename-to-telescope (-> lf? (listof var?) telescope?
                            lf?)]))
 
 (define (can-bind? b)
-  (or (bind? b) (cons-tele? b)))
+  (or (bind? b) (snoc-tele? b)))
 
 (define (binder-arity b)
-  (cond [(cons-tele? b) 1]
+  (cond [(snoc-tele? b) 1]
         [(bind? b) (length (bind-vars b))]))
 
 
 (define (var-name v)
   (let ((binder (var-binder v))
         (index (var-index v)))
-   (cond [(cons-tele? binder)
-          (cons-tele-name binder)]
+   (cond [(snoc-tele? binder)
+          (snoc-tele-name binder)]
          [(bind? binder)
           (list-ref (bind-vars binder) index)]
          [else (error 'bad-binder)])))
@@ -124,30 +124,40 @@
   [(define (write-proc s port mode)
      (fprintf port "SORT"))])
 
-(define (telescope->alist tele)
-  (cond [(empty-tele? tele) '()]
-        [(cons-tele? tele)
-         (cons (cons (cons-tele-name tele) (cons-tele-type tele))
-               (telescope->alist (cons-tele-telescope tele)))]))
+(define (snoc xs x)
+  (match xs
+    [(cons y ys)
+     (cons y (snoc ys x))]
+    [(list)
+     (list x)]))
 
-(define (telescope->list x)
-  (if (empty-tele? x)
-      '()
-      (cons x (telescope->list (cons-tele-telescope x)))))
+(define (telescope->alist Ψ)
+  (define (telescope->alist-internal tele)
+    (cond [(empty-tele? tele) '()]
+          [(snoc-tele? tele)
+           (cons (cons (snoc-tele-name tele) (snoc-tele-type tele))
+                 (telescope->alist (snoc-tele-prev tele)))]))
+  (reverse (telescope->alist-internal Ψ)))
+
+(define (telescope->list Ψ)
+  (let loop ([tele Ψ] [acc '()])
+    (if (empty-tele? tele)
+        acc
+        (loop (snoc-tele-prev tele) (cons tele acc)))))
 
 (define (telescope? x)
-  (or (empty-tele? x) (cons-tele? x)))
+  (or (empty-tele? x) (snoc-tele? x)))
 
 
 (define (print-telescope tele port)
   (fprintf port "(")
-  (let loop ([Ψ tele])
-   (if (cons-tele? Ψ)
-       (let ([x (get-name (cons-tele-name Ψ))])
-         (fprintf port "[~a ~a]" x (cons-tele-type Ψ))
+  (let loop ([Ψ (telescope->list tele)])
+   (if (pair? Ψ)
+       (let ([x (get-name (snoc-tele-name (car Ψ)))])
+         (fprintf port "[~a ~a]" x (snoc-tele-type (car Ψ)))
          (parameterize ([used-names (set-add (used-names) x)]
                         [name-displays (hash-set (name-displays) (var Ψ 0) x)])
-           (loop (cons-tele-telescope Ψ))))
+           (loop (cdr Ψ))))
        (begin (fprintf port ")")
               (values (used-names) (name-displays))))))
 
@@ -157,35 +167,25 @@
      (print-telescope s port)
      (void))])
 
-(struct cons-tele (name type [telescope-internal #:mutable])
-  #:constructor-name make-cons-tele
+(struct snoc-tele (prev name type)
   #:omit-define-syntaxes
   #:methods gen:custom-write
   [(define (write-proc s port mode)
      (print-telescope s port)
      (void))]
   #:methods gen:equal+hash
-  [(define (equal-proc cons-tele-1 cons-tele-2 rec-equal?)
+  [(define (equal-proc snoc-tele-1 snoc-tele-2 rec-equal?)
      ;; Ignore the name hint
-     (and (rec-equal? (cons-tele-type cons-tele-1)
-                      (cons-tele-type cons-tele-2))
-          (rec-equal? (cons-tele-telescope cons-tele-1)
-                      (cons-tele-telescope cons-tele-2))))
+     (and (rec-equal? (snoc-tele-type snoc-tele-1)
+                      (snoc-tele-type snoc-tele-2))
+          (rec-equal? (snoc-tele-prev snoc-tele-1)
+                      (snoc-tele-prev snoc-tele-2))))
    (define (hash-proc tele rec-hash)
-     (fxxor (rec-hash (cons-tele-type tele))
-            (rec-hash (cons-tele-telescope tele))))
+     (fxxor (rec-hash (snoc-tele-type tele))
+            (rec-hash (snoc-tele-prev tele))))
    (define (hash2-proc tele rec-hash)
-     (fxxor (rec-hash (cons-tele-type tele))
-            (rec-hash (cons-tele-telescope tele))))])
-
-(define (cons-tele name type sc)
-  (define Ψ (make-cons-tele name type #f))
-  (define sc-val (sc (var Ψ 0)))
-  (set-cons-tele-telescope-internal! Ψ sc-val)
-  Ψ)
-
-(define (cons-tele-telescope tele)
-  (cons-tele-telescope-internal tele))
+     (fxxor (rec-hash (snoc-tele-type tele))
+            (rec-hash (snoc-tele-prev tele))))])
 
 ;; domain is a telescope that binds variables also visible in the codomain
 (struct arity (domain [codomain-internal #:mutable])
@@ -352,6 +352,14 @@
 
   (do-subst ρ expr))
 
+(define (do-subst-tele ρ Ψ)
+  (cond [(empty-tele? Ψ) (values ρ Ψ)]
+        [(snoc-tele? Ψ)
+         (define-values (ρ′ prev′) (do-subst-tele ρ (snoc-tele-prev Ψ)))
+         (define Ψ′ (snoc-tele prev′ (snoc-tele-name Ψ) (do-subst ρ′ (snoc-tele-type Ψ))))
+         (values (hash-set ρ′ (var Ψ 0) (var Ψ′ 0))
+                 Ψ′)]))
+
 (define (do-subst ρ e)
   (match e
     [(? var? x)
@@ -360,18 +368,13 @@
     [(? arity?
         (app arity-domain dom)
         (app arity-codomain cod))
-     (define Ψ (do-subst ρ dom))
+     (define-values (ρ′ Ψ) (do-subst-tele ρ dom))
      (arity Ψ
+            ;; Here we can ignore the vs because we've already
+            ;; constructed the telescope during its substitution, and
+            ;; ρ′ contains the appropriate references.
             (lambda vs
-              (do-subst (let loop ([old-ρ ρ]
-                                   [vars vs]
-                                   [old-dom dom])
-                          (if (pair? old-dom)
-                              (loop (hash-set old-ρ (var old-dom 0) (car vars))
-                                    (cdr vars)
-                                    (cons-tele-telescope old-dom))
-                              old-ρ))
-                        cod)))]
+              (do-subst ρ′ cod)))]
     [(? bind?
         b
         (app bind-vars vars)
@@ -412,10 +415,4 @@
                old-ρ))
          (bind-scope b))]
        [_ (apply plug var new-spine)])]
-    [(? SORT?) e]
-    [(? empty-tele?) e]
-    [(? cons-tele?
-        (app cons-tele-name x)
-        (app cons-tele-type t)
-        (app cons-tele-telescope more))
-     (cons-tele x (do-subst ρ t) (lambda (y) (do-subst (hash-set ρ (var e 0) y) more)))]))
+    [(? SORT?) e]))
