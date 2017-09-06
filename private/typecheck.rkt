@@ -12,7 +12,9 @@
   [well-formed-classifier (-> typing-context? arity? void?)]
   [well-formed-context (-> typing-context? void?)]
   [check-type (-> typing-context? bind? arity? void?)]
-  [synth (-> typing-context? plug? (or/c SORT? plug?))]))
+  [synth (-> typing-context? plug? (or/c SORT? plug?))]
+  [telescope-ok (-> typing-context? telescope? void?)]
+  [check-spine (-> typing-context? (listof bind?) telescope? void?)]))
 
 
 (struct typing-context (telescopes)
@@ -97,9 +99,7 @@
 
 ;; The judgment Γ ⊢ σ ⇐ Ψ. (void) on success, exn on failure.
 (define (check-spine Γ σ Ψ)
-  (displayln `(check-spine ,Γ ,σ ,Ψ))
   (define (check-spine-inner ς Φ)
-    (displayln `(check-spine-inner ,ς ,Φ))
    (match ς
      ['()
       (if (empty-tele? Φ)
@@ -115,7 +115,6 @@
 
 ;; The judgment Γ ⊢ N ⇐ V
 (define (check-type Γ N V)
-  (displayln `(check-type ,Γ ,N ,V))
   (if (bind? N)
       (if (arity? V)
           (let* ([Ψ (arity-domain V)]
@@ -132,7 +131,6 @@
 
 ;; The judgment Γ ⊢ R ⇒ v (where v is output-moded).
 (define (synth Γ R)
-  (displayln `(synt ,Γ ,R))
   (define-values (Ψ v) (is-arity (lookup (plug-var R) Γ)))
   (check-spine Γ (plug-spine R) Ψ)
   (define out (subst v (plug-spine R) Ψ))
