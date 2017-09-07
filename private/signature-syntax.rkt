@@ -5,7 +5,7 @@
 (require (prefix-in ast: "ast.rkt")
          "typecheck.rkt")
 
-(provide define-sig term arity SORT)
+(provide define-sig term arity SORT bind)
 
 
 (module+ test
@@ -48,6 +48,9 @@
 
 (define-syntax (arity stx)
   (raise-syntax-error 'arity "Used outside of term" stx))
+
+(define-syntax (bind stx)
+  (raise-syntax-error 'bind "Used outside of term" stx))
 
 (define-syntax (SORT stx)
   (raise-syntax-error 'SORT "Used outside of term" stx))
@@ -260,7 +263,7 @@
 
 (define-for-syntax (parse-term-expr stx the-sig)
   (syntax-parse stx
-    #:literals (unquote SORT arity)
+    #:literals (unquote SORT arity bind)
     [SORT
      #'(ast:SORT)]
     [(unquote e)
@@ -272,6 +275,11 @@
        #'(ast:arity (telescope (x t-out) ...)
                     (lambda (x ...)
                       (ast:as-base-classifier e-out))))]
+    [(bind (x:id ...) body)
+     (with-syntax ([e-out (parse-term-expr #'body the-sig)])
+      #'(ast:bind '(x ...)
+                  (lambda (x ...)
+                    (ast:as-plug e-out))))]
     [(op:id arg ...)
      (let ([ar (assv (syntax->datum #'op) (sig-arities the-sig))])
        (if ar
