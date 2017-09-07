@@ -337,12 +337,14 @@
   (or (SORT? e) (arity? e) (plug? e) (var? e) (bind? e)))
 
 
+(define debug-subst? (make-parameter #f))
+
 (define (rename-to-telescope expr xs Ψ)
   (define ρ
     (for/hash ([x xs]
                [b (telescope->list Ψ)])
       (values x (var b 0))))
-  (do-subst ρ expr))
+  (parameterize ([debug-subst? #f]) (do-subst ρ expr)))
 
 (define (subst expr σ Ψ)
   (define ρ
@@ -361,58 +363,65 @@
                  Ψ′)]))
 
 (define (do-subst ρ e)
-  (match e
-    [(? var? x)
-     (define val (hash-ref ρ x #f))
-     (if val val x)]
-    [(? arity?
-        (app arity-domain dom)
-        (app arity-codomain cod))
-     (define-values (ρ′ Ψ) (do-subst-tele ρ dom))
-     (arity Ψ
-            ;; Here we can ignore the vs because we've already
-            ;; constructed the telescope during its substitution, and
-            ;; ρ′ contains the appropriate references.
-            (lambda vs
-              (do-subst ρ′ cod)))]
-    [(? bind?
-        b
-        (app bind-vars vars)
-        (app bind-scope sc))
-     (bind vars
-           (lambda xs
-             ;; Extend the environment with a renaming from the
-             ;; old bound vars to the new
-             (define ρ*
-               (let loop ([old-ρ ρ]
-                          [new-vars xs]
-                          [i 0])
-                 (if (pair? new-vars)
-                     (loop (hash-set old-ρ (var b i) (car new-vars))
-                           (cdr new-vars)
-                           (add1 i))
-                     old-ρ)))
-             (do-subst ρ* sc)))]
-    [(? plug?
-        (app plug-var var)
-        (app plug-spine spine))
-     (define new-spine
-       (for/list ([arg spine])
-         (do-subst ρ arg)))
-     (define var-val
-       (hash-ref ρ var #f))
-     (match var-val
-       [(? bind? b)
-        (define var-count (length (bind-vars b)))
-        (do-subst
-         (let loop ([old-ρ ρ]
-                    [i 0]
-                    [sp new-spine])
-           (if (pair? sp)
-               (loop (hash-set old-ρ (var b i) (car sp))
-                     (add1 i)
-                     (cdr sp))
-               old-ρ))
-         (bind-scope b))]
-       [_ (apply plug var new-spine)])]
-    [(? SORT?) e]))
+  (when (debug-subst?) (displayln `(do-subst ,ρ ,e)))
+  (define out
+    (match e
+      [(? var? x)
+       (define val (hash-ref ρ x #f))
+       (when (debug-subst?) (displayln `(var-val ,x ,val)))
+       (if val val x)]
+      [(? arity?
+          (app arity-domain dom)
+          (app arity-codomain cod))
+       (define-values (ρ′ Ψ) (do-subst-tele ρ dom))
+       (arity Ψ
+              ;; Here we can ignore the vs because we've already
+              ;; constructed the telescope during its substitution, and
+              ;; ρ′ contains the appropriate references.
+              (lambda vs
+                (do-subst ρ′ cod)))]
+      [(? bind?
+          b
+          (app bind-vars vars)
+          (app bind-scope sc))
+       (bind vars
+             (lambda xs
+               ;; Extend the environment with a renaming from the
+               ;; old bound vars to the new
+               (define ρ*
+                 (let loop ([old-ρ ρ]
+                            [new-vars xs]
+                            [i 0])
+                   (if (pair? new-vars)
+                       (loop (hash-set old-ρ (var b i) (car new-vars))
+                             (cdr new-vars)
+                             (add1 i))
+                       old-ρ)))
+               (do-subst ρ* sc)))]
+      [(? plug?
+          (app plug-var var)
+          (app plug-spine spine))
+       (define new-spine
+         (for/list ([arg spine])
+           (do-subst ρ arg)))
+       (define var-val
+         (hash-ref ρ var #f))
+       (when (debug-subst?) (displayln `(var-val/plug ,var ,var-val)))
+       (match var-val
+         [(? bind? b)
+          (define var-count (length (bind-vars b)))
+          (do-subst
+           (let loop ([old-ρ ρ]
+                      [i 0]
+                      [sp new-spine])
+             (if (pair? sp)
+                 (loop (hash-set old-ρ (var b i) (car sp))
+                       (add1 i)
+                       (cdr sp))
+                 old-ρ))
+           (bind-scope b))]
+         [_ (apply plug (if var-val var-val var) new-spine)])]
+      [(? SORT?) e]))
+  (when (debug-subst?)
+    (displayln `(subst from ,e to ,out)))
+  out)
