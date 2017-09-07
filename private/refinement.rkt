@@ -110,6 +110,14 @@
     [(sequent-tele-nil) (ast:empty-tele)]
     [(sequent-tele-snoc _ Φ _) Φ]))
 
+(define (check-sequent-tele Ψ ℋ)
+  (match ℋ
+    [(sequent-tele-nil) (void)]
+    [(sequent-tele-snoc ℋ′ Φ 𝒮)
+     (check-sequent-tele Ψ ℋ′)
+     (telescope-ok Ψ Φ)
+     (check-sequent Ψ 𝒮)]))
+
 (define (sequent-telescope? x)
   (or (sequent-tele-snoc? x)
       (sequent-tele-nil? x)))
@@ -141,7 +149,8 @@
   (telescope-ok Ψ Φ)
   (define ΨΦ (extend-context Ψ Φ))
   (well-formed-classifier ΨΦ α)
-  (check-type ΨΦ M α))
+  (check-type ΨΦ M α)
+  (check-sequent-tele Ψ ℋ))
 
 (module+ test
   (define proving-conjunction
@@ -157,5 +166,6 @@
                   (≫ (sequent-tele-nil)
                      (judgment is-true
                                (list (ast:as-bind (term L (⊤)))))))
-                 (ast:bind '(p1 p2) (lambda (p1 p2) (term L (both p1 p2))))
-                 (term L (arity ([p1 (P)] [p2 (P)]) (P))))))
+                 (term L (bind (a b) (both (a) (b))))
+                 (term L (arity ([p1 (P)] [p2 (P)]) (P)))))
+  (check-proof-state L proving-conjunction))
