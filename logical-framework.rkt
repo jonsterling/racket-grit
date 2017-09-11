@@ -20,11 +20,12 @@
 
   (define-sig Empty)
 
-  (check-equal? (term Empty SORT) (term Empty SORT))
+  (with-signature Empty
+   (check-equal? (term SORT) (term SORT)))
 
   (check-equal?
-   (term Empty (arity ((a SORT) (b a)) b))
-   (term Empty (arity ((b SORT) (c b)) c)))
+   (term (arity ((a SORT) (b a)) b))
+   (term (arity ((b SORT) (c b)) c)))
 
   (define-sig Num
     (nat () SORT)
@@ -38,40 +39,40 @@
 
   (well-formed-context Num)
 
+  (with-signature Num
+   ; An example of structural recursion over terms,
+   ; using the auto-generated patterns
+   (define (printer rtm)
+     (match rtm
+       [(term (nat)) "nat"]
+       [(term (ze)) "ze"]
+       [(term (su ,e)) (format "su(~a)" (printer e))]
+       [(term (ifze ,n ,z (x) ,s))
+        (format
+         "ifze(~a; ~a; ~a.~a)"
+         (printer n)
+         (printer z)
+         (ast:var-name x)
+         (printer s))]
+       [(term (x))
+        (printer x)]
+       [(? ast:var? x) (ast:var-name x)]))
 
-  ; An example of structural recursion over terms,
-  ; using the auto-generated patterns
-  (define (printer rtm)
-    (match rtm
-      [(term Num (nat)) "nat"]
-      [(term Num (ze)) "ze"]
-      [(term Num (su ,e)) (format "su(~a)" (printer e))]
-      [(term Num (ifze ,n ,z (x) ,s))
-       (format
-        "ifze(~a; ~a; ~a.~a)"
-        (printer n)
-        (printer z)
-        (ast:var-name x)
-        (printer s))]
-      [(term Num (x))
-       (printer x)]
-      [(? ast:var? x) (ast:var-name x)]))
 
+    (check-equal?
+     (synth Num (term (ifze (su (su (ze))) (ze) (x) x)))
+     (term (nat)))
 
-  (check-equal?
-   (synth Num (term Num (ifze (su (su (ze))) (ze) (x) x)))
-   (term Num (nat)))
+    (check-equal?
+     (printer
+      (term (ifze (su (su (ze)))
+                  (ze)
+                  (x) (su x))))
+     "ifze(su(su(ze)); ze; x.su(x))")
 
-  (check-equal?
-   (printer
-    (term Num (ifze (su (su (ze)))
-                    (ze)
-                    (x) (su x))))
-   "ifze(su(su(ze)); ze; x.su(x))")
-
-  (match (term Num (ifze (su (su (ze))) (ze) (x) (su x)))
-    [(term Num (ifze (su (su n)) z (x) ,s))
-     (check-equal? s (term Num (su x)))])
+    (match (term (ifze (su (su (ze))) (ze) (x) (su x)))
+      [(term (ifze (su (su n)) z (x) ,s))
+       (check-equal? s (term (su x)))]))
 
 
 )

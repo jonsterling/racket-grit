@@ -47,7 +47,8 @@
     [yep () (P)]
     [both ([p1 (P)] [p2 (P)])
           (P)])
-  (define is-true (spec 'is-true (term L (arity ([what (τ)]) (P)))))
+  (with-signature L
+   (define is-true (spec 'is-true (term (arity ([what (τ)]) (P))))))
   (check-spec L is-true))
 
 ;; Judgments are the application of a named specification to a
@@ -76,10 +77,11 @@
   (ast:subst τ φ Φ))
 
 (module+ test
-  (define and-true
-    (judgment is-true (list (ast:as-bind (term L (∧ (⊤) (⊤)))))))
-  (define false-true
-    (judgment is-true (list (ast:as-bind (term L (⊥))))))
+  (with-signature L
+   (define and-true
+     (judgment is-true (list (ast:as-bind (term  (∧ (⊤) (⊤)))))))
+    (define false-true
+      (judgment is-true (list (ast:as-bind (term (⊥)))))))
   ;; Both judgments are well-formed
   (check-true (ast:plug? (check-judgment L and-true)))
   (check-true (ast:plug? (check-judgment L false-true))))
@@ -129,17 +131,18 @@
   (ast:arity Φ (lambda _ τ)))
 
 (module+ test
-  (define indeed (≫ (sequent-tele-nil) and-true))
-  (check-equal? (check-sequent L indeed) (term L (arity () (P))))
-  (define perhaps
-    (≫ (make-sequent-tele-snoc L
-                               (sequent-tele-nil)
-                               'nope
-                               (≫ (sequent-tele-nil) false-true))
-       false-true))
-  (check-equal? (check-sequent L perhaps)
-                (term L (arity ([nuh-uh (P)])
-                               (P)))))
+  (with-signature L
+    (define indeed (≫ (sequent-tele-nil) and-true))
+    (check-equal? (check-sequent L indeed) (term (arity () (P))))
+    (define perhaps
+      (≫ (make-sequent-tele-snoc L
+                                 (sequent-tele-nil)
+                                 'nope
+                                 (≫ (sequent-tele-nil) false-true))
+         false-true))
+    (check-equal? (check-sequent L perhaps)
+                  (term (arity ([nuh-uh (P)])
+                                (P))))))
 
 (struct proof-state (subgoals extract arity) #:transparent)
 
@@ -153,19 +156,20 @@
   (check-sequent-tele Ψ ℋ))
 
 (module+ test
-  (define proving-conjunction
-    (proof-state (make-sequent-tele-snoc
-                  L
-                  (make-sequent-tele-snoc L
-                                          (sequent-tele-nil)
-                                          'p1
-                                          (≫ (sequent-tele-nil)
-                                             (judgment is-true
-                                                       (list (ast:as-bind (term L (⊤)))))))
-                  'p2
-                  (≫ (sequent-tele-nil)
-                     (judgment is-true
-                               (list (ast:as-bind (term L (⊤)))))))
-                 (term L (bind (a b) (both (a) (b))))
-                 (term L (arity ([p1 (P)] [p2 (P)]) (P)))))
+  (with-signature L
+   (define proving-conjunction
+     (proof-state (make-sequent-tele-snoc
+                   L
+                   (make-sequent-tele-snoc L
+                                           (sequent-tele-nil)
+                                           'p1
+                                           (≫ (sequent-tele-nil)
+                                              (judgment is-true
+                                                        (list (ast:as-bind (term (⊤)))))))
+                   'p2
+                   (≫ (sequent-tele-nil)
+                      (judgment is-true
+                                (list (ast:as-bind (term (⊤)))))))
+                  (term (bind (a b) (both (a) (b))))
+                  (term (arity ([p1 (P)] [p2 (P)]) (P))))))
   (check-proof-state L proving-conjunction))
