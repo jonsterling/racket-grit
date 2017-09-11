@@ -37,12 +37,17 @@
      [#f (raise-syntax-error op "Unknown op")]
      [(cons _ arity) arity])))
 
-(define-syntax-parameter current-signature #f)
+(define-syntax-parameter the-signature #f)
+
+(define-syntax (current-signature stx)
+  (syntax-parse stx
+    [(_)
+     (get-runtime-sig-name)]))
 
 (define-for-syntax (get-current-signature)
-  (define s (syntax-parameter-value #'current-signature))
+  (define s (syntax-parameter-value #'the-signature))
   (if (not (sig? s))
-      (raise-syntax-error 'current-signature "Not a signature")
+      (raise-syntax-error 'the-signature "Not a signature")
       s))
 
 (define-syntax (with-signature stx)
@@ -51,7 +56,7 @@
      (define-values (ct-binding rt-binding) (syntax-local-value/immediate #'Σ))
      (unless (sig? ct-binding)
        (raise-syntax-error (syntax-e #'Σ) "Not a signature"))
-     #'(splicing-syntax-parameterize ([current-signature
+     #'(splicing-syntax-parameterize ([the-signature
                                        (let-values ([(ct-binding rt-binding)
                                                      (syntax-local-value/immediate #'Σ)])
                                          ct-binding)])

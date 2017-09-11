@@ -48,8 +48,8 @@
     [both ([p1 (P)] [p2 (P)])
           (P)])
   (with-signature L
-   (define is-true (spec 'is-true (term (arity ([what (τ)]) (P))))))
-  (check-spec L is-true))
+    (define is-true (spec 'is-true (term (arity ([what (τ)]) (P)))))
+    (check-spec (current-signature) is-true)))
 
 ;; Judgments are the application of a named specification to a
 ;; suitable spine of arguments.
@@ -81,10 +81,10 @@
    (define and-true
      (judgment is-true (list (ast:as-bind (term  (∧ (⊤) (⊤)))))))
     (define false-true
-      (judgment is-true (list (ast:as-bind (term (⊥)))))))
-  ;; Both judgments are well-formed
-  (check-true (ast:plug? (check-judgment L and-true)))
-  (check-true (ast:plug? (check-judgment L false-true))))
+      (judgment is-true (list (ast:as-bind (term (⊥))))))
+    ;; Both judgments are well-formed
+    (check-true (ast:plug? (check-judgment (current-signature) and-true)))
+    (check-true (ast:plug? (check-judgment (current-signature) false-true)))))
 
 ;; 𝒮 ::= ℋ ≫ 𝒥
 (struct ≫ (hypotheses conclusion))
