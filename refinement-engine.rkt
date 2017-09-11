@@ -11,7 +11,6 @@
   racket/stxparam
   racket/splicing
   syntax/srcloc
-  "locally-nameless.rkt"
   "logical-framework.rkt")
 
 

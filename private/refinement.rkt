@@ -1,0 +1,175 @@
+#lang racket/base
+
+(require racket/contract racket/match)
+(require (prefix-in ast: "ast.rkt") "typecheck.rkt")
+(provide (contract-out
+          [spec? (-> any/c boolean?)]
+          [spec (-> symbol?
+                    (or/c ast:arity? ast:SORT?)
+                    spec?)]
+          [spec-arity (-> spec? ast:arity?)]
+          [judgment? (-> any/c boolean?)]
+          [judgment (-> spec? (listof ast:bind?) judgment?)]
+          [sequent? (-> any/c boolean?)]
+          [sequent-telescope? (-> any/c boolean?)]
+          [sequent-tele-nil (-> sequent-telescope?)]
+          [make-sequent-tele-snoc (-> typing-context? sequent-telescope? symbol? sequent?
+                                      sequent-telescope?)]
+          [≫ (-> sequent-telescope? judgment? sequent?)]
+          [check-sequent (-> typing-context? sequent? ast:arity?)]))
+
+(module+ test (require rackunit))
+
+;; 𝔰 ::= Ψ ▷ τ (we re-use the Racket context, so there's no explicit
+;; Σ, but each of these is a ϑ). The name is just a hint for display.
+(struct spec (name arity)
+  #:methods gen:custom-write
+  [(define (write-proc 𝔰 port mod)
+     (fprintf port "#<spec:~a>" (spec-name 𝔰)))])
+
+;; Check the judgment Ψ ⊢ 𝔰 spec, throwing an exception if it does
+;; not hold.
+(define (check-spec Ψ 𝔰)
+  (define α (spec-arity 𝔰))
+  (well-formed-classifier Ψ α))
+
+(module+ test
+  (require "signature-syntax.rkt")
+  (define-sig L
+    ;; Propositions τ
+    [τ () SORT]
+    [⊤ () (τ)]
+    [⊥ () (τ)]
+    [∧ ([A (τ)] [B (τ)])
+       (τ)]
+    ;; Proofs P
+    [P () SORT]
+    [yep () (P)]
+    [both ([p1 (P)] [p2 (P)])
+          (P)])
+  (with-signature L
+    (define is-true (spec 'is-true (term (arity ([what (τ)]) (P)))))
+    (check-spec (current-signature) is-true)))
+
+;; Judgments are the application of a named specification to a
+;; suitable spine of arguments.
+;; 𝒥 ::= ϑ[ψ]
+(struct judgment (spec args)
+  #:methods gen:custom-write
+  [(define (write-proc 𝒥 port mod)
+     (define ϑ (spec-name (judgment-spec 𝒥)))
+     (define ψ (judgment-args 𝒥))
+     (fprintf port "(~a" ϑ)
+     (for ([arg ψ])
+       (display " " port)
+       (display arg port))
+     (display ")" port))])
+
+
+
+;; Return the erasure sort of a well-formed judgment
+(define (check-judgment Ψ 𝒥)
+  (match-define (judgment (and 𝔰 (spec ϑ α)) φ) 𝒥)
+  (define Φ (ast:arity-domain α))
+  (define τ (ast:arity-codomain α))
+  (check-spec Ψ 𝔰)
+  (check-spine Ψ φ Φ)
+  (ast:subst τ φ Φ))
+
+(module+ test
+  (with-signature L
+   (define and-true
+     (judgment is-true (list (ast:as-bind (term  (∧ (⊤) (⊤)))))))
+    (define false-true
+      (judgment is-true (list (ast:as-bind (term (⊥))))))
+    ;; Both judgments are well-formed
+    (check-true (ast:plug? (check-judgment (current-signature) and-true)))
+    (check-true (ast:plug? (check-judgment (current-signature) false-true)))))
+
+;; 𝒮 ::= ℋ ≫ 𝒥
+(struct ≫ (hypotheses conclusion))
+
+(define (sequent? x)
+  (≫? x))
+
+;; ℋ ::= · | ℋ, x : 𝒮
+
+;; Telescopes for sequents are stored as a structure that parallels LF
+;; telescopes.  Each sequent telescope has a pointer to its LF
+;; realization, which is maintained separately. The snoc operator for
+;; sequent telescopes constructs the underlying LF telescope by
+;; performing extraction on the provided sequent.
+(struct sequent-tele-nil ())
+(struct sequent-tele-snoc (prev refines sequent))
+
+(define (make-sequent-tele-snoc Ψ prev x 𝒮)
+  (define prev′ (erase-sequent-tele prev))
+  (define Φ (ast:snoc-tele prev′ x (check-sequent Ψ 𝒮)))
+  (sequent-tele-snoc prev Φ 𝒮))
+
+(define (erase-sequent-tele ℋ)
+  (match ℋ
+    [(sequent-tele-nil) (ast:empty-tele)]
+    [(sequent-tele-snoc _ Φ _) Φ]))
+
+(define (check-sequent-tele Ψ ℋ)
+  (match ℋ
+    [(sequent-tele-nil) (void)]
+    [(sequent-tele-snoc ℋ′ Φ 𝒮)
+     (check-sequent-tele Ψ ℋ′)
+     (telescope-ok Ψ Φ)
+     (check-sequent Ψ 𝒮)]))
+
+(define (sequent-telescope? x)
+  (or (sequent-tele-snoc? x)
+      (sequent-tele-nil? x)))
+
+(define (check-sequent Ψ 𝒮)
+  (match-define (≫ ℋ 𝒥) 𝒮)
+  (define Φ (erase-sequent-tele ℋ))
+  (define τ (check-judgment (extend-context Ψ Φ) 𝒥))
+  (ast:arity Φ (lambda _ τ)))
+
+(module+ test
+  (with-signature L
+    (define indeed (≫ (sequent-tele-nil) and-true))
+    (check-equal? (check-sequent L indeed) (term (arity () (P))))
+    (define perhaps
+      (≫ (make-sequent-tele-snoc L
+                                 (sequent-tele-nil)
+                                 'nope
+                                 (≫ (sequent-tele-nil) false-true))
+         false-true))
+    (check-equal? (check-sequent L perhaps)
+                  (term (arity ([nuh-uh (P)])
+                                (P))))))
+
+(struct proof-state (subgoals extract arity) #:transparent)
+
+(define (check-proof-state Ψ 𝒞)
+  (match-define (proof-state ℋ M α) 𝒞)
+  (define Φ (erase-sequent-tele ℋ))
+  (telescope-ok Ψ Φ)
+  (define ΨΦ (extend-context Ψ Φ))
+  (well-formed-classifier ΨΦ α)
+  (check-type ΨΦ M α)
+  (check-sequent-tele Ψ ℋ))
+
+(module+ test
+  (with-signature L
+   (define proving-conjunction
+     (proof-state (make-sequent-tele-snoc
+                   L
+                   (make-sequent-tele-snoc L
+                                           (sequent-tele-nil)
+                                           'p1
+                                           (≫ (sequent-tele-nil)
+                                              (judgment is-true
+                                                        (list (ast:as-bind (term (⊤)))))))
+                   'p2
+                   (≫ (sequent-tele-nil)
+                      (judgment is-true
+                                (list (ast:as-bind (term (⊤)))))))
+                  (term (bind (a b) (both (a) (b))))
+                  (term (arity ([p1 (P)] [p2 (P)]) (P))))))
+  (check-proof-state L proving-conjunction))
